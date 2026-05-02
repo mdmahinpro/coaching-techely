@@ -1,0 +1,86 @@
+```
+Build all public pages with the dark navy + sky blue design.
+
+SHARED: PublicNavbar component
+- bg-navy-900/90 backdrop-blur-xl fixed top-0 w-full z-50
+- border-b border-navy-700/50
+- Left: logo (sky-400 glow) + institute name from settings
+- Center (desktop): Home | Courses | Notice Board | Contact | Admission
+  Each link: text-slate-400 hover:text-sky-400 transition font-medium
+  Active: text-sky-400 border-b-2 border-sky-400
+- Right: "Student Portal" btn-outline small + "Admin" text link
+- Mobile: hamburger → full overlay menu with framer-motion slide
+
+--- HomePage ---
+
+HERO:
+- min-h-screen bg-navy-900
+- Background: radial gradient glow at center: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(56,189,248,0.12) 0%, transparent 70%)
+- Floating grid pattern overlay (CSS: repeating-linear-gradient)
+- Content centered:
+  * Badge pill: "🎓 ভর্তি চলছে ২০২৫" — badge-blue, pulse animation
+  * Heading: "Build Your Future" white large + "With Us" text-gradient
+    Inter font, 5xl md:7xl, font-black
+  * Subtext: settings.hero_subtitle, Hind Siliguri, text-slate-400
+  * Buttons: "ভর্তি হন" btn-primary + "কোর্স দেখুন" btn-outline
+  * Stats row: X Students | X Teachers | X Batches | X% Success
+    Each: big sky-400 number + label below, separated by dividers
+    Animated count-up with IntersectionObserver
+- Right side (desktop): decorative code-block style card showing
+  course names with syntax-highlight colors (like LWS style)
+  Card: card-glass, monospace text, sky/violet highlights
+
+WHY CHOOSE US (6 cards, 2x3 grid, 3x2 mobile):
+bg-navy-900/50 section
+Each card: card-glass, sky-400 icon, title, description
+Icons: BookOpen, Clock, Trophy, MessageSquare, Star, Shield
+
+COURSES PREVIEW:
+"আমাদের কোর্সসমূহ" + show 6 active batches
+BatchCard: card, left border sky-400, subject+class badges, teacher, schedule, fee, seats
+"সব কোর্স দেখুন" btn-outline at bottom
+
+TEACHERS SECTION:
+"আমাদের শিক্ষকমণ্ডলী"
+Teacher cards: photo or initials avatar, name, subject badge, qualification
+
+TESTIMONIALS (3 cards, horizontal scroll mobile)
+card-glass style, star rating in sky-400, quote text, name
+
+NOTICE TICKER:
+navy-700 bg strip, scrolling latest notices, sky-400 "📢" prefix
+
+ADMISSION CTA:
+Full width, gradient bg from navy-800 to navy-900
+Heading + "ভর্তি আবেদন করুন" btn-primary large
+
+--- CoursesPage ---
+Filter pills: All | SSC | HSC | Class 6-8 | Admission Test
+Subject filter dropdown
+BatchCard grid (same as homepage but larger)
+Empty state: "কোনো কোর্স পাওয়া যায়নি"
+
+--- AdmissionPage ---
+3-step form with progress bar at top
+Step 1: Full Name, Guardian Name, Phone, Email, Address, Class Level
+Step 2: Select Batch (dropdown), optional note
+Step 3: Review + submit
+On submit: save to admission_applications
+Success: "আবেদন সফল! আমরা শীঘ্রই যোগাযোগ করব।" + reference number
+
+--- NoticeBoardPage ---
+Filter: All | Exam | Fee | Holiday | Result | Urgent
+Notice cards: type badge (color by type), title, body, date
+Urgent: red border + pulsing badge
+
+--- ContactPage ---
+Address, phone, WhatsApp button, email from settings
+Contact form → saves to simple inquiries
+Map embed (iframe placeholder)
+
+FOOTER:
+bg-navy-900 border-t border-navy-700/50
+Logo + tagline | Quick links | Contact info
+Social icons: Facebook icon, WhatsApp icon
+"© 2025 {name}. Powered by TECHELY"
+```

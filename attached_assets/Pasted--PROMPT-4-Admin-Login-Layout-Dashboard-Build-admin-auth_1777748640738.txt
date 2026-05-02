@@ -1,0 +1,69 @@
+## PROMPT 4 — Admin Login, Layout & Dashboard
+
+```
+Build admin auth and dashboard.
+
+--- AdminLoginPage (/admin/login) ---
+Full screen bg-navy-900
+Centered card (card-glass max-w-sm p-8):
+- Institute logo + "Admin Panel" Inter font bold
+- "লগইন" heading
+- Email input (input-field)
+- Password input (input-field + show/hide)
+- "লগইন করুন" btn-primary full width
+- Supabase Auth signInWithPassword
+- Wrong: framer-motion shake + red error toast
+- Success: navigate /admin/dashboard
+
+--- AdminLayout ---
+SIDEBAR (fixed 260px desktop, drawer mobile):
+bg-navy-800 border-r border-navy-700/50
+
+Top: Logo + institute name + "Admin" badge-blue
+
+Nav sections with Lucide icons:
+OVERVIEW:    LayoutDashboard  Dashboard
+ACADEMICS:   Users            Students
+             BookOpen         Batches
+             GraduationCap    Exams & Results
+FINANCE:     CreditCard       Fee Management
+PEOPLE:      UserCheck        Teachers
+             ClipboardList    Admissions
+COMMS:       Bell             Notices
+             MessageSquare    SMS Center
+SYSTEM:      BarChart3        Reports
+             Database         Backup
+             Settings         Settings
+
+Active: bg-sky-400/15 text-sky-400 border-l-2 border-sky-400 rounded-r-lg
+Hover: bg-white/5 rounded-lg
+
+HEADER (h-16):
+bg-navy-800/80 backdrop-blur border-b border-navy-700/50
+Hamburger | Page title | Global search | Dark toggle | Admin avatar + logout
+
+--- DashboardPage ---
+
+STATS ROW (2x2 mobile, 4 cols desktop):
+StatsCard: card bg, big number text-gradient, label text-slate-400, icon, trend badge
+
+Cards:
+1. Total Active Students — Users icon, sky
+2. This Month Collected ৳ — TrendingUp, emerald
+3. Pending Fees ৳ — AlertCircle, red (sum unpaid this month)
+4. Active Exams — BookOpen, violet (status=active count)
+
+CHARTS ROW:
+Left 60%: Enrollment Trend line chart (Recharts, sky-400 line, navy grid)
+Right 40%: Fee Status donut (collected/pending/waived, sky+emerald+red)
+
+BOTTOM ROW (3 cols, stack mobile):
+Col 1: Recent Admissions (last 5 pending, name + class + "Review" link)
+Col 2: Active Exams (status=active, title + batch + "Manage" link)
+Col 3: Fee Dues Alert (students with 2+ months unpaid, red badges)
+
+All Recharts styled with navy colors, sky-400 accents, no white backgrounds.
+Loading skeletons for all cards (pulse animation, navy-700 bg).
+```
+
+---
