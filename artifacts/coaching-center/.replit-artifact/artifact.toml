@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Coaching Center Management System"
+version = "1.0.0"
+id = "artifacts/coaching-center"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25059
+
+[services.development]
+run = "pnpm --filter @workspace/coaching-center run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/coaching-center", "run", "build" ]
+publicDir = "artifacts/coaching-center/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25059"
+BASE_PATH = "/"

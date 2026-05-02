@@ -1,0 +1,221 @@
+From learnwithsumit.com + refind-it.replit.app:
+
+COLORS (only these, no outside colors):
+```
+--bg-base:      #0b1120   (very dark navy — LWS base)
+--bg-card:      #0f172a   (dark navy card)
+--bg-elevated:  #1e293b   (slightly lighter navy)
+--bg-input:     #1e293b
+--primary:      #38bdf8   (sky blue — LWS accent)
+--primary-dark: #0284c7
+--primary-glow: rgba(56,189,248,0.15)
+--secondary:    #a78bfa   (violet — refind accent)
+--secondary-glow: rgba(167,139,250,0.15)
+--success:      #34d399   (emerald)
+--warning:      #f59e0b   (amber)
+--danger:       #ef4444   (red)
+--text-primary: #f8fafc   (near white)
+--text-secondary:#94a3b8  (slate-400)
+--text-muted:   #64748b   (slate-500)
+--border:       #1e293b
+--border-accent: rgba(56,189,248,0.2)
+```
+
+FONTS:
+- UI + Bengali: "Hind Siliguri" (LWS uses this)
+- Headings: "Inter" weight 700-900
+- Mono: system monospace for IDs/codes
+
+STYLE:
+- Dark navy base (not pure black)
+- Sky blue primary accents (LWS)
+- Violet secondary accents (refind)
+- Glassmorphism cards: bg-white/5 backdrop-blur border border-white/8
+- Rounded: 8px cards, 9999px pills, 6px inputs
+- Gradient buttons: sky-500 to blue-600
+- Glow effects on hover: box-shadow with primary-glow
+
+---
+
+## PROMPT 1 — Project Setup, Design System & Routing
+
+```
+Create a full-stack Coaching Center Management System.
+
+TECH STACK (all free tier):
+- Frontend: React 18 + Vite
+- Styling: Tailwind CSS
+- Backend/DB: Supabase (PostgreSQL + Auth + Storage + Realtime)
+- State: Zustand
+- Routing: React Router DOM v6
+- Forms: React Hook Form + Zod
+- Charts: Recharts
+- PDF: jsPDF + html2canvas
+- Icons: Lucide React
+- Animations: Framer Motion
+- Notifications: react-hot-toast
+
+SETUP COMMANDS:
+npm create vite@latest . -- --template react
+npm install react-router-dom zustand @supabase/supabase-js
+npm install react-hook-form zod @hookform/resolvers
+npm install recharts framer-motion lucide-react
+npm install jspdf html2canvas react-hot-toast
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+
+TAILWIND CONFIG (tailwind.config.js):
+export default {
+  content: ['./index.html','./src/**/*.{js,jsx}'],
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        navy: {
+          900: '#0b1120',
+          800: '#0f172a',
+          700: '#1e293b',
+          600: '#2d3f55',
+        },
+        sky: {
+          400: '#38bdf8',
+          500: '#0ea5e9',
+          600: '#0284c7',
+        },
+        violet: { 400: '#a78bfa', 500: '#8b5cf6' },
+        emerald: { 400: '#34d399', 500: '#10b981' },
+      },
+      fontFamily: {
+        hind: ['"Hind Siliguri"', 'sans-serif'],
+        inter: ['Inter', 'sans-serif'],
+      },
+      animation: {
+        'fade-up':    'fadeUp 0.6s ease forwards',
+        'scale-in':   'scaleIn 0.4s ease forwards',
+        'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
+        'shimmer':    'shimmer 2s linear infinite',
+        'countdown':  'countdown linear forwards',
+      },
+      keyframes: {
+        fadeUp:    { from:{ opacity:0, transform:'translateY(24px)' }, to:{ opacity:1, transform:'translateY(0)' } },
+        scaleIn:   { from:{ opacity:0, transform:'scale(0.9)' }, to:{ opacity:1, transform:'scale(1)' } },
+        pulseGlow: { '0%,100%':{ boxShadow:'0 0 0 rgba(56,189,248,0)' }, '50%':{ boxShadow:'0 0 24px rgba(56,189,248,0.4)' } },
+        shimmer:   { '0%':{ backgroundPosition:'-200% center' }, '100%':{ backgroundPosition:'200% center' } },
+      },
+    },
+  },
+  plugins: [],
+}
+
+GLOBAL CSS (src/index.css):
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body {
+    background-color: #0b1120;
+    color: #f8fafc;
+    font-family: 'Hind Siliguri', sans-serif;
+    overflow-x: hidden;
+  }
+  * { box-sizing: border-box; }
+  img { max-width: 100%; display: block; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: #0b1120; }
+  ::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 3px; }
+  ::selection { background: rgba(56,189,248,0.3); }
+  -webkit-tap-highlight-color: transparent;
+  input, textarea, select { font-size: 16px !important; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-sky-500 to-sky-600 text-white
+           font-semibold px-5 py-2.5 rounded-lg
+           hover:from-sky-400 hover:to-sky-500
+           transition-all duration-200 hover:scale-[1.02]
+           active:scale-[0.98] shadow-lg shadow-sky-900/30
+           cursor-pointer select-none;
+  }
+  .btn-secondary {
+    @apply bg-gradient-to-r from-violet-500 to-violet-600 text-white
+           font-semibold px-5 py-2.5 rounded-lg
+           hover:opacity-90 transition-all duration-200
+           hover:scale-[1.02] active:scale-[0.98] cursor-pointer;
+  }
+  .btn-outline {
+    @apply border border-sky-400/40 text-sky-400
+           font-semibold px-5 py-2.5 rounded-lg
+           hover:bg-sky-400/10 transition-all duration-200 cursor-pointer;
+  }
+  .btn-danger {
+    @apply bg-red-500/20 border border-red-500/40 text-red-400
+           font-semibold px-4 py-2 rounded-lg
+           hover:bg-red-500/30 transition-all duration-200 cursor-pointer;
+  }
+  .card {
+    @apply bg-navy-800/80 border border-navy-700/60
+           rounded-xl shadow-xl shadow-black/20;
+  }
+  .card-glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/8
+           rounded-xl shadow-xl shadow-black/30;
+  }
+  .input-field {
+    @apply w-full bg-navy-700 border border-navy-600/80
+           rounded-lg px-4 py-2.5 text-white
+           placeholder-slate-500
+           focus:outline-none focus:border-sky-400/60
+           focus:ring-1 focus:ring-sky-400/30
+           transition-all duration-200;
+  }
+  .badge-blue   { @apply bg-sky-400/15 text-sky-400 border border-sky-400/20 rounded-full px-3 py-0.5 text-xs font-semibold; }
+  .badge-violet { @apply bg-violet-400/15 text-violet-400 border border-violet-400/20 rounded-full px-3 py-0.5 text-xs font-semibold; }
+  .badge-green  { @apply bg-emerald-400/15 text-emerald-400 border border-emerald-400/20 rounded-full px-3 py-0.5 text-xs font-semibold; }
+  .badge-red    { @apply bg-red-400/15 text-red-400 border border-red-400/20 rounded-full px-3 py-0.5 text-xs font-semibold; }
+  .badge-yellow { @apply bg-amber-400/15 text-amber-400 border border-amber-400/20 rounded-full px-3 py-0.5 text-xs font-semibold; }
+  .section-title { @apply font-inter text-2xl md:text-4xl font-bold text-white; }
+  .text-gradient { @apply bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent; }
+  .glow-blue  { box-shadow: 0 0 20px rgba(56,189,248,0.25); }
+  .glow-violet { box-shadow: 0 0 20px rgba(167,139,250,0.25); }
+}
+
+PROJECT STRUCTURE:
+src/
+  pages/
+    public/   HomePage, CoursesPage, AdmissionPage, NoticeBoardPage, ContactPage
+    admin/    DashboardPage, StudentsPage, BatchesPage, FeesPage, ExamsPage,
+              ResultsPage, TeachersPage, NoticesPage, SMSPage, AdmissionsPage,
+              ReportsPage, SettingsPage, BackupPage
+    portal/   PortalLoginPage, PortalDashboardPage, PortalFeesPage,
+              PortalExamsPage, PortalResultsPage, PortalNoticePage
+    ExamTakingPage  (public exam URL)
+  components/
+    public/   PublicNavbar, Footer, BatchCard, HeroSection
+    admin/    AdminLayout, AdminSidebar, AdminHeader, StatsCard,
+              StudentModal, DataTable, ConfirmDialog
+    portal/   PortalLayout, PortalNav
+    shared/   AnimatedSection, LoadingSkeleton, EmptyState, Avatar
+  lib/
+    supabase.js   sms.js   pdf.js   utils.js   backup.js
+  store/
+    useAuthStore.js   useSettingsStore.js
+  hooks/
+    useIntersection.js   useDebounce.js
+
+ROUTING (src/App.jsx):
+Public:  /  /courses  /admission  /notices  /contact
+Admin:   /admin/login  /admin/*  (ProtectedRoute role=admin)
+Portal:  /portal/login  /portal/*  (ProtectedRoute role=student)
+Exam:    /exam/:examId  (public, student enters ID to start)
+
+Create:
+- ProtectedRoute.jsx (checks Supabase session + role)
+- src/lib/supabase.js (supabase + supabaseAdmin clients)
+- src/store/useAuthStore.js (Zustand: user, role, loading, signIn, signOut)
+
+DO NOT build pages yet. Only setup.
