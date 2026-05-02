@@ -83,9 +83,13 @@ export default function SettingsPage() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!curPw) { toast.error('Current password is required'); return; }
     if (newPw !== confPw) { toast.error('Passwords do not match'); return; }
     if (newPw.length < 8) { toast.error('Password must be at least 8 characters'); return; }
     setSavingPw(true);
+    // Verify current password before allowing update
+    const { error: verifyErr } = await supabase.auth.signInWithPassword({ email: adminEmail, password: curPw });
+    if (verifyErr) { toast.error('Current password is incorrect'); setSavingPw(false); return; }
     const { error } = await supabase.auth.updateUser({ password: newPw });
     if (error) { toast.error(error.message); } else { toast.success('Password updated!'); setCurPw(''); setNewPw(''); setConfPw(''); }
     setSavingPw(false);
@@ -297,6 +301,7 @@ export default function SettingsPage() {
 
                 <form onSubmit={handleChangePassword} className="space-y-3 pt-2 border-t border-white/5">
                   <p className="text-xs text-slate-400 font-semibold">Change Password</p>
+                  <input type="password" value={curPw} onChange={e => setCurPw(e.target.value)} className="input-field" placeholder="Current password" />
                   <div className="relative">
                     <input type={showPw ? 'text' : 'password'} value={newPw} onChange={e => setNewPw(e.target.value)} className="input-field pr-10" placeholder="New password (min 8 chars)" />
                     <button type="button" onClick={() => setShowPw(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">

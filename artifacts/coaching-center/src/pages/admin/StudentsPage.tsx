@@ -92,16 +92,22 @@ export default function StudentsPage() {
     if (editing?.id) {
       const { error } = await supabase.from('students').update(data).eq('id', editing.id);
       if (error) { toast.error('Update failed'); return; }
+      // Update enrolled counts when batch changes
+      if (editing.batch_id !== data.batch_id) {
+        if (editing.batch_id) {
+          await supabase.rpc('decrement_enrolled', { batch_uuid: editing.batch_id });
+        }
+        if (data.batch_id) {
+          await supabase.rpc('increment_enrolled', { batch_uuid: data.batch_id });
+        }
+      }
       toast.success('Student updated');
     } else {
       const { error } = await supabase.from('students').insert([{ ...data, status: data.status ?? 'active' }]);
       if (error) { toast.error('Failed to add student: ' + error.message); return; }
       // Update batch enrolled count
       if (data.batch_id) {
-        const batch = batches.find(b => b.id === data.batch_id);
-        if (batch) {
-          await supabase.rpc('increment_enrolled', { batch_uuid: data.batch_id });
-        }
+        await supabase.rpc('increment_enrolled', { batch_uuid: data.batch_id });
       }
       toast.success(`Student added! ID: ${data.student_id}`);
     }
@@ -114,6 +120,10 @@ export default function StudentsPage() {
     if (!deleteTarget) return;
     const { error } = await supabase.from('students').delete().eq('id', deleteTarget.id);
     if (error) { toast.error('Delete failed'); return; }
+    // Decrement enrolled count for the student's batch
+    if (deleteTarget.batch_id) {
+      await supabase.rpc('decrement_enrolled', { batch_uuid: deleteTarget.batch_id });
+    }
     toast.success('Student deleted');
     setDeleteTarget(null);
     load();

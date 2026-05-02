@@ -40,12 +40,13 @@ export default function PortalProfilePage() {
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !student) return;
-    if (file.size > 300 * 1024) {
-      toast.error('ছবির সাইজ ৩০০KB এর বেশি হওয়া যাবে না');
-      return;
-    }
     setUploading(true);
     const blob = await compressImage(file);
+    if (blob.size > 300 * 1024) {
+      toast.error('ছবির সাইজ ৩০০KB এর বেশি হওয়া যাবে না');
+      setUploading(false);
+      return;
+    }
     const path = `students/${student.id}-photo.jpg`;
     const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
     if (upErr) { toast.error('আপলোড ব্যর্থ হয়েছে'); setUploading(false); return; }

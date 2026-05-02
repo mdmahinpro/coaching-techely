@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useStudentStore } from '@/store/useStudentStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -56,11 +57,10 @@ const fmtTime = (s: number) => {
   return `${m}:${ss}`;
 };
 
-const instituteName = 'Coaching Center';
-
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function ExamPage() {
   const { examId } = useParams<{ examId: string }>();
+  const { settings } = useSettingsStore();
 
   const [step, setStep] = useState<Step>('loading');
   const [exam, setExam] = useState<ExamData | null>(null);
@@ -117,7 +117,7 @@ export default function ExamPage() {
         if (existing) {
           setSubmission(existing as Submission);
           loadLeaderboard();
-          setStep(e.status === 'ended' ? 'already-submitted' : 'already-submitted');
+          setStep('already-submitted');
           return;
         }
         if (e.status === 'ended') { setStep('ended'); return; }
@@ -415,7 +415,7 @@ export default function ExamPage() {
         <div className="sticky top-0 z-30 bg-navy-900/95 backdrop-blur-sm border-b border-navy-700/50 px-4 py-3">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-slate-400 text-xs">{instituteName}</p>
+              <p className="text-slate-400 text-xs">{settings.centerName}</p>
               <p className="text-white text-sm font-semibold truncate">{exam?.title}</p>
             </div>
 

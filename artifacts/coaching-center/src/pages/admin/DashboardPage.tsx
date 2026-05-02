@@ -60,7 +60,7 @@ export default function DashboardPage() {
       admissionsRes, examsRes, allFeesRes, studentsForDueRes,
     ] = await Promise.all([
       supabase.from('students').select('id,created_at', { count: 'exact' }),
-      supabase.from('fees').select('amount').eq('status', 'paid').gte('due_date', monthStart).lte('due_date', monthEnd),
+      supabase.from('fees').select('amount').eq('status', 'paid').gte('payment_date', monthStart).lte('payment_date', monthEnd),
       supabase.from('fees').select('amount').eq('status', 'pending'),
       supabase.from('exams').select('id', { count: 'exact', head: true }).eq('status', 'active'),
       supabase.from('admission_requests').select('id,name,guardian_name,created_at,batch_id').eq('status', 'pending').order('created_at', { ascending: false }).limit(5),

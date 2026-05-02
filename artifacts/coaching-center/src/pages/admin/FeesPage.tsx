@@ -42,23 +42,32 @@ const daysOverdue = (month: string): number => {
 
 // ── Overview Tab ─────────────────────────────────────────────────────────────
 function OverviewTab() {
-  const [payments, setPayments] = useState<any[]>([]);
+  const { settings } = useSettingsStore();
+  const [payments, setPayments] = useState<any[]>([]); // display table (recent 20)
+  const [feeStats, setFeeStats] = useState({ due: 0, collected: 0, pending: 0, overdue: 0 });
   const [loading, setLoading] = useState(true);
-
-  const stats = {
-    due: payments.filter(p => p.month === THIS_MONTH).reduce((s, p) => s + (p.amount ?? 0), 0),
-    collected: payments.filter(p => p.status === 'paid').reduce((s, p) => s + (p.final_amount ?? p.amount ?? 0), 0),
-    pending: payments.filter(p => p.status === 'pending').reduce((s, p) => s + (p.amount ?? 0), 0),
-    overdue: payments.filter(p => p.status === 'overdue').length,
-  };
 
   useEffect(() => {
     setLoading(true);
-    supabase.from('fees')
-      .select('*, student:students(name, student_id, photo_url), batch:batches(name)')
-      .order('payment_date', { ascending: false })
-      .limit(20)
-      .then(({ data }) => { setPayments(data ?? []); setLoading(false); });
+    Promise.all([
+      // Display table — joined, limited to 20 most recent
+      supabase.from('fees')
+        .select('*, student:students(name, student_id, photo_url), batch:batches(name)')
+        .order('payment_date', { ascending: false })
+        .limit(20),
+      // Stats — all records, no join needed
+      supabase.from('fees').select('amount, final_amount, status, month'),
+    ]).then(([{ data: displayData }, { data: statsData }]) => {
+      setPayments(displayData ?? []);
+      const all = statsData ?? [];
+      setFeeStats({
+        due: all.filter(p => p.month === THIS_MONTH).reduce((s, p) => s + (p.amount ?? 0), 0),
+        collected: all.filter(p => p.status === 'paid').reduce((s, p) => s + ((p.final_amount ?? p.amount) ?? 0), 0),
+        pending: all.filter(p => p.status === 'pending').reduce((s, p) => s + (p.amount ?? 0), 0),
+        overdue: all.filter(p => p.status === 'overdue').length,
+      });
+      setLoading(false);
+    });
   }, []);
 
   const paid = payments.filter(p => p.status === 'paid');
@@ -67,10 +76,10 @@ function OverviewTab() {
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'This Month Due', value: formatCurrency(stats.due), color: 'text-sky-400', icon: DollarSign },
-          { label: 'Collected', value: formatCurrency(stats.collected), color: 'text-emerald-400', icon: TrendingUp },
-          { label: 'Pending', value: formatCurrency(stats.pending), color: 'text-amber-400', icon: RefreshCw },
-          { label: 'Overdue', value: stats.overdue, color: 'text-red-400', icon: AlertTriangle },
+          { label: 'This Month Due', value: formatCurrency(feeStats.due), color: 'text-sky-400', icon: DollarSign },
+          { label: 'Collected', value: formatCurrency(feeStats.collected), color: 'text-emerald-400', icon: TrendingUp },
+          { label: 'Pending', value: formatCurrency(feeStats.pending), color: 'text-amber-400', icon: RefreshCw },
+          { label: 'Overdue', value: feeStats.overdue, color: 'text-red-400', icon: AlertTriangle },
         ].map(s => (
           <div key={s.label} className="card p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -133,7 +142,7 @@ function OverviewTab() {
                               finalAmount: meta.final_amount ?? p.amount,
                               paymentMethod: meta.payment_method || 'Cash',
                               transactionId: meta.transaction_id,
-                              instituteName: 'Coaching Center',
+                              instituteName: settings.centerName,
                             })}
                             className="p-1.5 rounded-lg hover:bg-sky-500/15 text-slate-400 hover:text-sky-400 transition-colors"
                             title="Print Receipt"
@@ -197,11 +206,14 @@ function GenerateTab({ batches }: { batches: any[] }) {
 
     const toCreate = active.filter(s => !existingIds.has(s.id));
 
-    // Get batch fee amount
-    let feeAmount = 1500;
+    // Get batch fee amounts — per-batch when generating for all batches
+    const batchFeeMap: Record<string, number> = {};
     if (batchId !== 'all') {
       const { data: bd } = await supabase.from('batches').select('monthly_fee').eq('id', batchId).single();
-      feeAmount = bd?.monthly_fee ?? 1500;
+      batchFeeMap[batchId] = bd?.monthly_fee ?? 1500;
+    } else {
+      const { data: batchData } = await supabase.from('batches').select('id, monthly_fee');
+      (batchData ?? []).forEach(b => { batchFeeMap[b.id] = b.monthly_fee ?? 1500; });
     }
 
     let created = 0;
@@ -212,7 +224,7 @@ function GenerateTab({ batches }: { batches: any[] }) {
         toCreate.map(s => ({
           student_id: s.id,
           batch_id: s.batch_id ?? null,
-          amount: feeAmount,
+          amount: s.batch_id ? (batchFeeMap[s.batch_id] ?? 1500) : 1500,
           month: monthStr,
           status: 'pending',
           due_date: due.toISOString().slice(0, 10),

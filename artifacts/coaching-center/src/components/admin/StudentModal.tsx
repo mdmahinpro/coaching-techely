@@ -122,11 +122,12 @@ export function StudentModal({ open, student, batches = [], onSave, onClose }: P
     }
   }, [open, student]);
 
-  // Auto-fill portal password from guardian phone
+  // Auto-fill portal password from guardian/student phone — only when adding a new student
   useEffect(() => {
+    if (student) return; // don't overwrite manually set passwords on edit
     const pw = (guardianPhone || phone || '').slice(-6);
     if (pw) setValue('password', pw);
-  }, [guardianPhone, phone]);
+  }, [guardianPhone, phone, student]);
 
   const handlePhotoSelect = (file: File) => {
     setPhotoError('');
