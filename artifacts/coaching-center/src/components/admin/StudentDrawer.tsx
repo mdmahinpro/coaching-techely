@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Copy, Check, DollarSign, BookOpen, MessageSquare, User, ShieldOff, ShieldCheck } from 'lucide-react';
+import { X, Copy, Check, DollarSign, BookOpen, MessageSquare, User, ShieldOff, ShieldCheck, KeyRound, Eye, EyeOff, Save, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Avatar } from '@/components/shared/Avatar';
 import { SuspendModal } from './SuspendModal';
@@ -20,6 +20,7 @@ interface Student {
   gender?: string;
   status: 'active' | 'inactive' | 'suspended';
   is_approved?: boolean;
+  password?: string;
   photo_url?: string;
   batch?: { id: string; name: string };
   created_at: string;
@@ -55,9 +56,18 @@ export function StudentDrawer({ student, onClose, onStatusChange }: Props) {
   const [copied, setCopied] = useState(false);
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [newPw, setNewPw] = useState('');
+  const [savingPw, setSavingPw] = useState(false);
+  const [currentPw, setCurrentPw] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    if (student) { setTab('profile'); }
+    if (student) {
+      setTab('profile');
+      setNewPw('');
+      setShowPw(false);
+      setCurrentPw(student.password);
+    }
   }, [student?.id]);
 
   useEffect(() => {
@@ -71,10 +81,24 @@ export function StudentDrawer({ student, onClose, onStatusChange }: Props) {
   useEffect(() => {
     if (!student || tab !== 'exams') return;
     setExamsLoading(true);
-    supabase.from('results').select('*, exam:exams(title, exam_date)').eq('student_id', student.id)
-      .order('created_at', { ascending: false })
+    // Use mcq_submissions table (the actual exam results table)
+    supabase.from('mcq_submissions')
+      .select('*, exam:exams(title, exam_date, total_marks)')
+      .eq('student_id', student.id)
+      .order('submitted_at', { ascending: false })
       .then(({ data }) => { setExams(data ?? []); setExamsLoading(false); });
   }, [student?.id, tab]);
+
+  const handleResetPassword = async () => {
+    if (!student || !newPw.trim()) return;
+    setSavingPw(true);
+    const { error } = await supabase.from('students').update({ password: newPw.trim() }).eq('id', student.id);
+    setSavingPw(false);
+    if (error) { toast.error('Failed to update password'); return; }
+    setCurrentPw(newPw.trim());
+    setNewPw('');
+    toast.success('Password updated! Student can now login with the new password.');
+  };
 
   const copyId = () => {
     if (!student?.student_id) return;
@@ -219,10 +243,49 @@ export function StudentDrawer({ student, onClose, onStatusChange }: Props) {
                     )}
 
                     {/* Portal credentials */}
-                    <div className="card p-3 border-dashed border-sky-400/20">
-                      <p className="text-slate-500 text-[10px] mb-1">Portal Login Credentials</p>
-                      <p className="font-mono text-sky-400 text-xs">{student.phone}@coaching.local</p>
-                      <p className="font-mono text-slate-500 text-xs">Password: {(student.guardian_phone || student.phone).slice(-6)}</p>
+                    <div className="card p-4 border border-dashed border-sky-400/20 space-y-3">
+                      <p className="text-slate-500 text-[10px] uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                        <KeyRound size={11} /> Portal Login Credentials
+                      </p>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 text-xs">Phone (Login ID)</span>
+                          <span className="font-mono text-sky-400 text-xs">{student.phone}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500 text-xs">Password</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-white text-xs">
+                              {showPw ? (currentPw ?? '—') : (currentPw ? '••••••' : <span className="text-red-400">not set</span>)}
+                            </span>
+                            {currentPw && (
+                              <button onClick={() => setShowPw(s => !s)} className="text-slate-500 hover:text-white">
+                                {showPw ? <EyeOff size={11} /> : <Eye size={11} />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Reset password */}
+                      <div className="border-t border-white/5 pt-3">
+                        <p className="text-slate-600 text-[10px] mb-2">Reset portal password</p>
+                        <div className="flex gap-2">
+                          <input
+                            value={newPw}
+                            onChange={e => setNewPw(e.target.value)}
+                            className="input-field flex-1 py-1.5 text-xs font-mono"
+                            placeholder="New password…"
+                            onKeyDown={e => e.key === 'Enter' && handleResetPassword()}
+                          />
+                          <button
+                            onClick={handleResetPassword}
+                            disabled={savingPw || !newPw.trim()}
+                            className="btn-outline py-1.5 px-3 text-xs shrink-0"
+                          >
+                            {savingPw ? <Loader2 size={11} className="animate-spin" /> : <Save size={11} />}
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Action buttons */}

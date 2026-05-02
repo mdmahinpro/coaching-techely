@@ -24,6 +24,7 @@ interface Student {
   gender?: 'male' | 'female' | 'other';
   status: 'active' | 'inactive' | 'suspended';
   is_approved?: boolean;
+  password?: string;
   photo_url?: string;
   batch_id?: string;
   batch?: { id: string; name: string };

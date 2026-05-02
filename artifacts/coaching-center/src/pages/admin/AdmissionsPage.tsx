@@ -67,9 +67,11 @@ export default function AdmissionsPage() {
   const handleApprove = async (admission: Admission) => {
     setActing(admission.id);
     const studentId = await generateStudentId();
-    const password = Math.random().toString(36).slice(-8);
+    // Password = last 6 digits of phone, or random 6-char fallback
+    const phone = (admission.phone ?? '').replace(/\D/g, '');
+    const password = phone.length >= 6 ? phone.slice(-6) : Math.random().toString(36).slice(-6);
 
-    // Create student record
+    // Create student record — password IS saved so they can login
     const { error: sErr } = await supabase.from('students').insert([{
       name: admission.name,
       email: admission.email,
@@ -79,19 +81,25 @@ export default function AdmissionsPage() {
       class_level: admission.class_level ?? null,
       status: 'active',
       is_approved: true,
+      password,
       guardian_name: admission.guardian_name ?? null,
       address: admission.address ?? null,
     }]);
 
     if (sErr) { toast.error('Failed to create student: ' + sErr.message); setActing(null); return; }
 
+    // Update batch enrolled count
+    if (admission.batch_id) {
+      await supabase.rpc('increment_enrolled', { batch_uuid: admission.batch_id });
+    }
+
     // Update admission status
     await supabase.from('admission_requests').update({ status: 'approved' }).eq('id', admission.id);
-    toast.success(`Approved! Student ID: ${studentId}`);
+    toast.success(`Approved! Student ID: ${studentId} · Password: ${password}`);
 
-    // Send SMS
+    // Send SMS with correct password
     if (admission.phone) {
-      const msg = `🎉 ${admission.name}, ভর্তি অনুমোদিত! আপনার আইডি: ${studentId}। পোর্টাল পাসওয়ার্ড: ${password}। ${settings.centerName}`;
+      const msg = `🎉 ${admission.name}, ভর্তি অনুমোদিত!\nStudent ID: ${studentId}\nPasword: ${password}\nপোর্টাল: /portal/login\n- ${settings.centerName}`;
       await sendSMS(admission.phone, msg, 'APPROVED', settings.smsApiKey, settings.smsSenderId);
     }
 
