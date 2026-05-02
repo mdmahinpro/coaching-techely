@@ -1,0 +1,96 @@
+```
+Build remaining admin pages.
+
+--- NoticesPage (/admin/notices) ---
+Left: Create notice form (title, body textarea, type select, target, batch if specific, publish toggle)
+Right: Published notices list (type badge, title, date, target, edit/delete)
+
+On publish + SMS option:
+SMS: "📢 {institute}: {title} — {body first 60 chars}..."
+Send to all/batch students based on target
+
+--- TeachersPage (/admin/teachers) ---
+Grid of teacher cards (photo/avatar, name, subject badge, qualification, phone)
+ADD/EDIT modal:
+- Photo upload (300KB limit same as students)
+- Full name, subject, qualification, phone, email, bio
+- Is active toggle
+
+--- AdmissionsPage (/admin/admissions) ---
+Stats: Total | Pending | Approved | Rejected
+Filter tabs + search
+Table: Name | Class | Batch | Phone | Date | Status | Actions
+View drawer: full application details
+Approve: creates student account → sends SMS with ID + portal password
+Reject: sends SMS with rejection message
+
+--- ReportsPage (/admin/reports) ---
+TABS: Enrollment | Fee Collection | Exam Summary | Top Students
+
+Enrollment: line chart by month, class-wise bar chart, table
+Fee Collection: collected vs pending donut + bar chart, batch-wise table, export
+Exam Summary: select exam → pass/fail donut, grade distribution bar, top 10
+Top Students: ranked by exam average score, trophy icons top 3, export CSV
+
+All charts: Recharts, navy bg, sky-400/violet-400 colors
+
+--- BatchesPage (/admin/batches) ---
+Batch cards: name, subject/class badges, teacher, schedule, capacity bar, fee
+Create/Edit modal:
+- Batch name, subject, class level
+- Teacher select
+- Schedule: multi-select days + start/end time
+- Monthly fee, max seats
+- Description, is active
+Batch detail: enrolled students list, fee status summary, linked exams
+
+--- BackupPage (/admin/backup) ---
+"💾 ONE CLICK BACKUP" — big prominent section:
+
+Large card with backup button:
+btn-primary large: "সম্পূর্ণ ডেটা ব্যাকআপ করুন"
+
+On click:
+1. Show progress steps:
+   ✓ Fetching students...
+   ✓ Fetching fee records...
+   ✓ Fetching exam results...
+   ✓ Fetching notices...
+   ✓ Fetching settings...
+   ✓ Preparing backup file...
+2. Fetch ALL tables using supabaseAdmin:
+   - students, batch_enrollments, batches, teachers
+   - fee_records, exams, mcq_questions, mcq_submissions
+   - notices, sms_logs, admission_applications, site_settings, banners
+3. Create JSON object:
+{
+  backup_version: "1.0",
+  backup_date: new Date().toISOString(),
+  institute: settings.institute_name,
+  tables: {
+    students: [...],
+    fee_records: [...],
+    // all tables
+  }
+}
+4. Download as: backup_{institute_name}_{YYYY-MM-DD_HH-MM}.json
+5. Toast: "✅ ব্যাকআপ সফল! X records saved"
+
+RESTORE section:
+- Upload JSON backup file
+- Parse and validate backup_version
+- Show summary: "X students, X fee records, X exam results found in backup"
+- "Restore" button with double confirmation:
+  "এটি বর্তমান ডেটা মুছে ফেলবে। নিশ্চিত?"
+  Second: "আবার নিশ্চিত করুন — এই কাজ পূর্বাবস্থায় ফেরানো যাবে না"
+- On confirm: upsert all records back to Supabase
+
+BACKUP HISTORY:
+Store last 5 backup dates in localStorage: "শেষ ব্যাকআপ: {date}"
+Show as list below button
+
+FUTURE-PROOF NOTE displayed:
+card-glass info box:
+"ℹ️ এই ব্যাকআপ ফাইলটি ভবিষ্যতে নতুন ফিচার যোগ হলেও কাজ করবে।
+নতুন ফিচারের ডেটা পুরোনো ব্যাকআপে থাকবে না, তবে পুরোনো ডেটা নিরাপদ থাকবে।"
+```
