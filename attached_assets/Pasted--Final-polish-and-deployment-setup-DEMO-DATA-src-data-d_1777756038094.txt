@@ -1,0 +1,74 @@
+```
+Final polish and deployment setup.
+
+DEMO DATA (/src/data/demoData.js):
+Only runs if localStorage 'demo_loaded' !== 'true'
+Add "Load Demo Data" button in admin dashboard for first-time setup
+
+Demo teachers (3):
+- Md. Rafiqul Islam | Math | MSc Mathematics
+- Fatema Khatun | English | MA English Literature
+- Abdul Karim | Science | BSc Physics
+
+Demo batches (3):
+- SSC-2025 গণিত | Math | Class 9-10 | Rafiqul | Sat,Mon,Wed 7-8:30AM | ৳500
+- HSC-2025 ইংরেজি | English | Class 11-12 | Fatema | Sun,Tue,Thu 5-6:30PM | ৳600
+- Class 8 বিজ্ঞান | Science | Class 8 | Abdul | Sat,Mon 4-5PM | ৳400
+
+Demo students (5) with:
+- Approved status, CF25 IDs
+- Enrolled in batches
+- 2 months fee records (mix of paid/unpaid)
+
+Demo exam (1):
+Title: "গণিত মডেল টেস্ট ০১"
+Batch: SSC-2025 গণিত
+10 questions, 30 minutes, ended status
+2 demo submissions with leaderboard
+
+Demo notices (3): exam notice + fee reminder + holiday
+
+MOBILE POLISH (final audit):
+1. Every page: overflow-x hidden, no horizontal scroll
+2. All inputs: font-size 16px (no iOS zoom)
+3. Touch targets: min 44x44px everywhere
+4. Admin sidebar: full-screen overlay on mobile
+5. All tables: horizontal scroll with fixed first column
+6. Modals: full-screen on mobile (h-full rounded-none)
+7. Exam page: large option buttons, easy tap, no overflow
+8. Portal bottom tabs: safe-area padding for notch phones
+9. Charts: full width, shorter height on mobile
+10. PDF buttons: work on mobile Chrome
+
+GLOBAL FEATURES:
+1. Global search in admin header: students by name/ID
+2. Dark mode: all pages compatible, toggle saves to localStorage
+3. Loading skeletons: all tables + cards
+4. Error boundaries: graceful error pages
+5. Toast notifications: all actions (react-hot-toast)
+6. Framer motion: page transitions + modal animations + stagger
+
+DEPLOYMENT FILES:
+netlify.toml:
+[build]
+  command = "npm run build"
+  publish = "dist"
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+vercel.json:
+{"rewrites":[{"source":"/(.*)", "destination":"/index.html"}]}
+
+.env.example:
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_SUPABASE_SERVICE_KEY=
+VITE_SITE_URL=https://yourcoaching.com
+
+README.md: complete setup + deploy guide
+
+Run npm run build — fix all errors until build passes with zero errors.
+Final output: "✅ Build successful. Ready to deploy."
+```

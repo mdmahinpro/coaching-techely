@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/useAuthStore';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { StudentProtectedRoute } from '@/components/StudentProtectedRoute';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 import HomePage from '@/pages/public/HomePage';
 import CoursesPage from '@/pages/public/CoursesPage';
@@ -108,6 +109,7 @@ function App() {
   useEffect(() => { initialize(); }, []);
   const base = import.meta.env.BASE_URL.replace(/\/$/, '') || '/';
   return (
+    <ErrorBoundary>
     <BrowserRouter basename={base}>
       <AppRoutes />
       <Toaster
@@ -125,6 +127,7 @@ function App() {
         }}
       />
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

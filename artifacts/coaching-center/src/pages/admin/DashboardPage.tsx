@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Link } from 'react-router-dom';
 import {
   Users, TrendingUp, AlertCircle, BookOpen,
-  ClipboardList, ChevronRight,
+  ClipboardList, ChevronRight, Database, Loader2, Sparkles,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { AnimatedSection } from '@/components/shared/AnimatedSection';
@@ -15,9 +15,10 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { motion } from 'framer-motion';
+import { loadDemoData, isDemoLoaded } from '@/data/demoData';
+import toast from 'react-hot-toast';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 const PIE_COLORS = { collected: '#38bdf8', pending: '#ef4444', waived: '#34d399' };
 
 function SkeletonCard() {
@@ -39,110 +40,94 @@ function SkeletonBlock({ h = 'h-40' }: { h?: string }) {
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    activeStudents: 0,
-    monthCollected: 0,
-    pendingFees: 0,
-    activeExams: 0,
-  });
+  const [stats, setStats] = useState({ activeStudents: 0, monthCollected: 0, pendingFees: 0, activeExams: 0 });
   const [enrollmentData, setEnrollmentData] = useState<{ month: string; students: number }[]>([]);
   const [feeDonut, setFeeDonut] = useState<{ name: string; value: number }[]>([]);
   const [recentAdmissions, setRecentAdmissions] = useState<any[]>([]);
   const [activeExams, setActiveExams] = useState<any[]>([]);
   const [feeDues, setFeeDues] = useState<any[]>([]);
+  const [demoLoaded, setDemoLoaded] = useState(isDemoLoaded);
+  const [loadingDemo, setLoadingDemo] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+  const fetchData = async () => {
+    setLoading(true);
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
-      const [
-        studentRes,
-        monthPaidRes,
-        pendingRes,
-        activeExamRes,
-        admissionsRes,
-        examsRes,
-        allFeesRes,
-        studentsForDueRes,
-      ] = await Promise.all([
-        supabase.from('students').select('id,created_at', { count: 'exact' }),
-        supabase.from('fees').select('amount').eq('status', 'paid')
-          .gte('due_date', monthStart).lte('due_date', monthEnd),
-        supabase.from('fees').select('amount').eq('status', 'pending'),
-        supabase.from('exams').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('admission_requests').select('id,name,guardian_name,created_at,batch_id')
-          .eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
-        supabase.from('exams').select('id,title,batch_id,exam_date,status').eq('status', 'active').limit(5),
-        supabase.from('fees').select('status,amount'),
-        supabase.from('students').select('id,name').limit(50),
-      ]);
+    const [
+      studentRes, monthPaidRes, pendingRes, activeExamRes,
+      admissionsRes, examsRes, allFeesRes, studentsForDueRes,
+    ] = await Promise.all([
+      supabase.from('students').select('id,created_at', { count: 'exact' }),
+      supabase.from('fees').select('amount').eq('status', 'paid').gte('due_date', monthStart).lte('due_date', monthEnd),
+      supabase.from('fees').select('amount').eq('status', 'pending'),
+      supabase.from('exams').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      supabase.from('admission_requests').select('id,name,guardian_name,created_at,batch_id').eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
+      supabase.from('exams').select('id,title,batch_id,exam_date,status').eq('status', 'active').limit(5),
+      supabase.from('fees').select('status,amount'),
+      supabase.from('students').select('id,name').limit(50),
+    ]);
 
-      // Stats
-      const monthCollected = (monthPaidRes.data ?? []).reduce((s: number, r: any) => s + (r.amount ?? 0), 0);
-      const pendingFees = (pendingRes.data ?? []).reduce((s: number, r: any) => s + (r.amount ?? 0), 0);
+    const monthCollected = (monthPaidRes.data ?? []).reduce((s: number, r: any) => s + (r.amount ?? 0), 0);
+    const pendingFees = (pendingRes.data ?? []).reduce((s: number, r: any) => s + (r.amount ?? 0), 0);
+    setStats({ activeStudents: studentRes.count ?? 0, monthCollected, pendingFees, activeExams: activeExamRes.count ?? 0 });
 
-      setStats({
-        activeStudents: studentRes.count ?? 0,
-        monthCollected,
-        pendingFees,
-        activeExams: activeExamRes.count ?? 0,
-      });
+    const students = studentRes.data ?? [];
+    const monthCounts: Record<number, number> = {};
+    students.forEach((s: any) => {
+      const m = new Date(s.created_at).getMonth();
+      monthCounts[m] = (monthCounts[m] ?? 0) + 1;
+    });
+    const trend = [];
+    for (let i = 5; i >= 0; i--) {
+      const m = (now.getMonth() - i + 12) % 12;
+      trend.push({ month: MONTHS[m], students: monthCounts[m] ?? 0 });
+    }
+    setEnrollmentData(trend);
 
-      // Enrollment trend — simulate monthly from created_at
-      const students = studentRes.data ?? [];
-      const monthCounts: Record<number, number> = {};
-      students.forEach((s: any) => {
-        const m = new Date(s.created_at).getMonth();
-        monthCounts[m] = (monthCounts[m] ?? 0) + 1;
-      });
-      // Show last 6 months
-      const trend = [];
-      for (let i = 5; i >= 0; i--) {
-        const m = (now.getMonth() - i + 12) % 12;
-        trend.push({ month: MONTHS[m], students: monthCounts[m] ?? 0 });
-      }
-      setEnrollmentData(trend);
+    const fees = allFeesRes.data ?? [];
+    const collected = fees.filter((f: any) => f.status === 'paid').reduce((s: number, f: any) => s + (f.amount ?? 0), 0);
+    const pending = fees.filter((f: any) => f.status === 'pending').reduce((s: number, f: any) => s + (f.amount ?? 0), 0);
+    const waived = fees.filter((f: any) => f.status === 'waived').reduce((s: number, f: any) => s + (f.amount ?? 0), 0);
+    setFeeDonut([
+      { name: 'Collected', value: collected },
+      { name: 'Pending', value: pending },
+      { name: 'Waived', value: waived },
+    ].filter(d => d.value > 0));
 
-      // Fee donut
-      const fees = allFeesRes.data ?? [];
-      const collected = fees.filter((f: any) => f.status === 'paid').reduce((s: number, f: any) => s + (f.amount ?? 0), 0);
-      const pending = fees.filter((f: any) => f.status === 'pending').reduce((s: number, f: any) => s + (f.amount ?? 0), 0);
-      const waived = fees.filter((f: any) => f.status === 'waived').reduce((s: number, f: any) => s + (f.amount ?? 0), 0);
-      setFeeDonut([
-        { name: 'Collected', value: collected },
-        { name: 'Pending', value: pending },
-        { name: 'Waived', value: waived },
-      ].filter(d => d.value > 0));
+    setRecentAdmissions(admissionsRes.data ?? []);
+    setActiveExams(examsRes.data ?? []);
 
-      // Recent admissions
-      setRecentAdmissions(admissionsRes.data ?? []);
+    const dueFees = await supabase.from('fees').select('student_id, amount, due_date').eq('status', 'pending');
+    const studentDues: Record<string, { count: number; total: number }> = {};
+    (dueFees.data ?? []).forEach((f: any) => {
+      if (!studentDues[f.student_id]) studentDues[f.student_id] = { count: 0, total: 0 };
+      studentDues[f.student_id].count++;
+      studentDues[f.student_id].total += f.amount ?? 0;
+    });
+    const overdueIds = Object.entries(studentDues).filter(([, v]) => v.count >= 2).slice(0, 5).map(([id, v]) => ({ id, ...v }));
+    const studentMap: Record<string, string> = {};
+    (studentsForDueRes.data ?? []).forEach((s: any) => { studentMap[s.id] = s.name; });
+    setFeeDues(overdueIds.map(d => ({ ...d, name: studentMap[d.id] ?? 'Unknown' })));
+    setLoading(false);
+  };
 
-      // Active exams
-      setActiveExams(examsRes.data ?? []);
+  useEffect(() => { fetchData(); }, []);
 
-      // Fee dues — students with 2+ unpaid months
-      const dueFees = await supabase.from('fees').select('student_id, amount, due_date').eq('status', 'pending');
-      const studentDues: Record<string, { count: number; total: number }> = {};
-      (dueFees.data ?? []).forEach((f: any) => {
-        if (!studentDues[f.student_id]) studentDues[f.student_id] = { count: 0, total: 0 };
-        studentDues[f.student_id].count++;
-        studentDues[f.student_id].total += f.amount ?? 0;
-      });
-      const overdueIds = Object.entries(studentDues)
-        .filter(([, v]) => v.count >= 2)
-        .slice(0, 5)
-        .map(([id, v]) => ({ id, ...v }));
-
-      const studentMap: Record<string, string> = {};
-      (studentsForDueRes.data ?? []).forEach((s: any) => { studentMap[s.id] = s.name; });
-      setFeeDues(overdueIds.map(d => ({ ...d, name: studentMap[d.id] ?? 'Unknown' })));
-
-      setLoading(false);
-    };
-    load();
-  }, []);
+  const handleLoadDemo = async () => {
+    setLoadingDemo(true);
+    try {
+      await loadDemoData();
+      setDemoLoaded(true);
+      toast.success('ডেমো ডেটা সফলভাবে লোড হয়েছে!');
+      await fetchData();
+    } catch (err: any) {
+      toast.error('ডেমো লোড ব্যর্থ: ' + (err?.message ?? 'Unknown error'));
+    } finally {
+      setLoadingDemo(false);
+    }
+  };
 
   const customTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -160,7 +145,36 @@ export default function DashboardPage() {
 
   return (
     <AdminLayout title="Dashboard">
-      <div className="space-y-6">
+      <div className="space-y-5">
+
+        {/* Demo Data Banner */}
+        {!demoLoaded && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card p-4 border border-sky-400/20 bg-gradient-to-r from-sky-400/5 to-violet-400/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-sky-400/10 border border-sky-400/20 flex items-center justify-center shrink-0">
+                <Sparkles size={18} className="text-sky-400" />
+              </div>
+              <div>
+                <p className="text-white font-semibold text-sm font-inter">প্রথমবার সেটআপ করছেন?</p>
+                <p className="text-slate-400 text-xs mt-0.5">ডেমো ডেটা লোড করে সিস্টেমটি পরীক্ষা করুন — শিক্ষক, ব্যাচ, ছাত্র, পরীক্ষা এবং নোটিশ যোগ হবে।</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLoadDemo}
+              disabled={loadingDemo}
+              className="btn-primary text-sm shrink-0 min-h-[44px]"
+            >
+              {loadingDemo
+                ? <><Loader2 size={14} className="animate-spin" /> লোড হচ্ছে…</>
+                : <><Database size={14} /> ডেমো ডেটা লোড করুন</>
+              }
+            </button>
+          </motion.div>
+        )}
 
         {/* Stats row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -168,51 +182,22 @@ export default function DashboardPage() {
             Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
           ) : (
             <>
-              <StatsCard
-                title="Active Students"
-                value={stats.activeStudents}
-                icon={Users}
-                color="sky"
-                index={0}
-                trend={{ value: 12, label: 'this month' }}
-              />
-              <StatsCard
-                title="Month Collected"
-                value={formatCurrency(stats.monthCollected)}
-                icon={TrendingUp}
-                color="emerald"
-                index={1}
-                trend={{ value: 8, label: 'vs last month' }}
-              />
-              <StatsCard
-                title="Pending Fees"
-                value={formatCurrency(stats.pendingFees)}
-                icon={AlertCircle}
-                color="red"
-                index={2}
-              />
-              <StatsCard
-                title="Active Exams"
-                value={stats.activeExams}
-                icon={BookOpen}
-                color="violet"
-                index={3}
-              />
+              <StatsCard title="Active Students" value={stats.activeStudents} icon={Users} color="sky" index={0} trend={{ value: 12, label: 'this month' }} />
+              <StatsCard title="Month Collected" value={formatCurrency(stats.monthCollected)} icon={TrendingUp} color="emerald" index={1} trend={{ value: 8, label: 'vs last month' }} />
+              <StatsCard title="Pending Fees" value={formatCurrency(stats.pendingFees)} icon={AlertCircle} color="red" index={2} />
+              <StatsCard title="Active Exams" value={stats.activeExams} icon={BookOpen} color="violet" index={3} />
             </>
           )}
         </div>
 
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-          {/* Enrollment Trend — 60% */}
           <AnimatedSection className="lg:col-span-3 card p-5">
             <h2 className="font-inter font-semibold text-white text-sm mb-4 flex items-center gap-2">
               <TrendingUp size={15} className="text-sky-400" /> Enrollment Trend (Last 6 Months)
             </h2>
-            {loading ? (
-              <SkeletonBlock h="h-52" />
-            ) : (
-              <div className="h-52">
+            {loading ? <SkeletonBlock h="h-52" /> : (
+              <div className="h-48 md:h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={enrollmentData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                     <defs>
@@ -222,75 +207,32 @@ export default function DashboardPage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                    <XAxis
-                      dataKey="month"
-                      stroke="#334155"
-                      tick={{ fill: '#64748b', fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      stroke="#334155"
-                      tick={{ fill: '#64748b', fontSize: 11 }}
-                      axisLine={false}
-                      tickLine={false}
-                      allowDecimals={false}
-                    />
+                    <XAxis dataKey="month" stroke="#334155" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#334155" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip content={customTooltip} />
-                    <Line
-                      type="monotone"
-                      dataKey="students"
-                      name="Students"
-                      stroke="url(#lineGlow)"
-                      strokeWidth={2.5}
-                      dot={{ fill: '#38bdf8', r: 4, strokeWidth: 0 }}
-                      activeDot={{ r: 6, fill: '#38bdf8', strokeWidth: 0 }}
-                    />
+                    <Line type="monotone" dataKey="students" name="Students" stroke="url(#lineGlow)" strokeWidth={2.5} dot={{ fill: '#38bdf8', r: 4, strokeWidth: 0 }} activeDot={{ r: 6, fill: '#38bdf8', strokeWidth: 0 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
           </AnimatedSection>
 
-          {/* Fee Status donut — 40% */}
           <AnimatedSection delay={80} className="lg:col-span-2 card p-5">
             <h2 className="font-inter font-semibold text-white text-sm mb-4 flex items-center gap-2">
               <AlertCircle size={15} className="text-violet-400" /> Fee Status
             </h2>
-            {loading ? (
-              <SkeletonBlock h="h-52" />
-            ) : feeDonut.length === 0 ? (
+            {loading ? <SkeletonBlock h="h-52" /> : feeDonut.length === 0 ? (
               <div className="h-52 flex items-center justify-center text-slate-500 text-sm">No fee data</div>
             ) : (
-              <div className="h-52">
+              <div className="h-48 md:h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie
-                      data={feeDonut}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {feeDonut.map((entry, i) => (
-                        <Cell
-                          key={entry.name}
-                          fill={
-                            entry.name === 'Collected' ? PIE_COLORS.collected :
-                            entry.name === 'Pending' ? PIE_COLORS.pending :
-                            PIE_COLORS.waived
-                          }
-                          opacity={0.9}
-                        />
+                    <Pie data={feeDonut} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
+                      {feeDonut.map(entry => (
+                        <Cell key={entry.name} fill={entry.name === 'Collected' ? PIE_COLORS.collected : entry.name === 'Pending' ? PIE_COLORS.pending : PIE_COLORS.waived} opacity={0.9} />
                       ))}
                     </Pie>
-                    <Legend
-                      iconType="circle"
-                      iconSize={8}
-                      formatter={(v) => <span className="text-slate-400 text-xs">{v}</span>}
-                    />
+                    <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-slate-400 text-xs">{v}</span>} />
                     <Tooltip content={customTooltip} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -302,25 +244,20 @@ export default function DashboardPage() {
         {/* Bottom 3-col row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
-          {/* Col 1: Recent Admissions */}
+          {/* Recent Admissions */}
           <AnimatedSection className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-inter font-semibold text-white text-sm flex items-center gap-2">
                 <ClipboardList size={15} className="text-sky-400" /> Recent Admissions
               </h2>
-              <Link to="/admin/admissions" className="text-sky-400 text-xs hover:underline flex items-center gap-1">
-                View all <ChevronRight size={12} />
-              </Link>
+              <Link to="/admin/admissions" className="text-sky-400 text-xs hover:underline flex items-center gap-1">View all <ChevronRight size={12} /></Link>
             </div>
             {loading ? (
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="flex gap-3 animate-pulse">
                     <div className="w-8 h-8 rounded-full bg-navy-700 shrink-0" />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-3 bg-navy-700 rounded w-3/4" />
-                      <div className="h-2.5 bg-navy-700 rounded w-1/2" />
-                    </div>
+                    <div className="flex-1 space-y-1.5"><div className="h-3 bg-navy-700 rounded w-3/4" /><div className="h-2.5 bg-navy-700 rounded w-1/2" /></div>
                   </div>
                 ))}
               </div>
@@ -329,125 +266,72 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 {recentAdmissions.map((a, i) => (
-                  <motion.div
-                    key={a.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.06 }}
-                    className="flex items-center justify-between gap-3"
-                  >
+                  <motion.div key={a.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }} className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Avatar name={a.name} size="sm" />
                       <div className="min-w-0">
-                        <p className="text-white text-xs font-medium truncate">{a.name}</p>
+                        <p className="text-white text-xs font-medium truncate font-hind">{a.name}</p>
                         <p className="text-slate-500 text-[10px]">{formatDate(a.created_at)}</p>
                       </div>
                     </div>
-                    <Link
-                      to="/admin/admissions"
-                      className="shrink-0 text-sky-400 text-[10px] border border-sky-400/30 rounded px-2 py-0.5 hover:bg-sky-400/10 transition-colors"
-                    >
-                      Review
-                    </Link>
+                    <Link to="/admin/admissions" className="shrink-0 text-sky-400 text-[10px] border border-sky-400/30 rounded px-2 py-0.5 hover:bg-sky-400/10 transition-colors">Review</Link>
                   </motion.div>
                 ))}
               </div>
             )}
           </AnimatedSection>
 
-          {/* Col 2: Active Exams */}
+          {/* Active Exams */}
           <AnimatedSection delay={80} className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-inter font-semibold text-white text-sm flex items-center gap-2">
                 <BookOpen size={15} className="text-violet-400" /> Active Exams
               </h2>
-              <Link to="/admin/exams" className="text-sky-400 text-xs hover:underline flex items-center gap-1">
-                View all <ChevronRight size={12} />
-              </Link>
+              <Link to="/admin/exams" className="text-sky-400 text-xs hover:underline flex items-center gap-1">View all <ChevronRight size={12} /></Link>
             </div>
             {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="animate-pulse space-y-1.5">
-                    <div className="h-3 bg-navy-700 rounded w-3/4" />
-                    <div className="h-2.5 bg-navy-700 rounded w-1/2" />
-                  </div>
-                ))}
-              </div>
+              <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => (<div key={i} className="animate-pulse space-y-1.5"><div className="h-3 bg-navy-700 rounded w-3/4" /><div className="h-2.5 bg-navy-700 rounded w-1/2" /></div>))}</div>
             ) : activeExams.length === 0 ? (
               <p className="text-slate-500 text-sm text-center py-6">No active exams</p>
             ) : (
               <div className="space-y-3">
                 {activeExams.map((e, i) => (
-                  <motion.div
-                    key={e.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.06 }}
-                    className="flex items-start justify-between gap-2"
-                  >
+                  <motion.div key={e.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }} className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-white text-xs font-medium truncate">{e.title}</p>
+                      <p className="text-white text-xs font-medium truncate font-hind">{e.title}</p>
                       <p className="text-slate-500 text-[10px]">{e.exam_date ? formatDate(e.exam_date) : '—'}</p>
                     </div>
-                    <Link
-                      to="/admin/exams"
-                      className="shrink-0 text-violet-400 text-[10px] border border-violet-400/30 rounded px-2 py-0.5 hover:bg-violet-400/10 transition-colors"
-                    >
-                      Manage
-                    </Link>
+                    <Link to="/admin/exams" className="shrink-0 text-violet-400 text-[10px] border border-violet-400/30 rounded px-2 py-0.5 hover:bg-violet-400/10 transition-colors">Manage</Link>
                   </motion.div>
                 ))}
               </div>
             )}
           </AnimatedSection>
 
-          {/* Col 3: Fee Dues Alert */}
+          {/* Fee Dues */}
           <AnimatedSection delay={160} className="card p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-inter font-semibold text-white text-sm flex items-center gap-2">
                 <AlertCircle size={15} className="text-red-400" /> Fee Dues Alert
               </h2>
-              <Link to="/admin/fees" className="text-sky-400 text-xs hover:underline flex items-center gap-1">
-                View all <ChevronRight size={12} />
-              </Link>
+              <Link to="/admin/fees" className="text-sky-400 text-xs hover:underline flex items-center gap-1">View all <ChevronRight size={12} /></Link>
             </div>
             {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex gap-3 animate-pulse">
-                    <div className="w-8 h-8 rounded-full bg-navy-700 shrink-0" />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="h-3 bg-navy-700 rounded w-3/4" />
-                      <div className="h-2.5 bg-navy-700 rounded w-1/2" />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => (<div key={i} className="flex gap-3 animate-pulse"><div className="w-8 h-8 rounded-full bg-navy-700 shrink-0" /><div className="flex-1 space-y-1.5"><div className="h-3 bg-navy-700 rounded w-3/4" /><div className="h-2.5 bg-navy-700 rounded w-1/2" /></div></div>))}</div>
             ) : feeDues.length === 0 ? (
               <div className="text-center py-6">
-                <div className="w-10 h-10 rounded-full bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center mx-auto mb-2">
-                  <TrendingUp size={18} className="text-emerald-400" />
-                </div>
+                <div className="w-10 h-10 rounded-full bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center mx-auto mb-2"><TrendingUp size={18} className="text-emerald-400" /></div>
                 <p className="text-emerald-400 text-xs font-medium">All fees up to date!</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {feeDues.map((d, i) => (
-                  <motion.div
-                    key={d.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.06 }}
-                    className="flex items-center justify-between gap-2"
-                  >
+                  <motion.div key={d.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }} className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <Avatar name={d.name} size="sm" />
-                      <p className="text-white text-xs font-medium truncate">{d.name}</p>
+                      <p className="text-white text-xs font-medium truncate font-hind">{d.name}</p>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="badge-red text-[10px]">{d.count} months</span>
-                    </div>
+                    <span className="badge-red text-[10px] shrink-0">{d.count} months</span>
                   </motion.div>
                 ))}
               </div>
