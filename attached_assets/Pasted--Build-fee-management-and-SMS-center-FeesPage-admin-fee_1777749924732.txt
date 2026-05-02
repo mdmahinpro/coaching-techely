@@ -1,0 +1,145 @@
+```
+Build fee management and SMS center.
+
+--- FeesPage (/admin/fees) ---
+
+TABS: Overview | Generate | Record Payment | Due Report
+
+TAB 1 OVERVIEW:
+Stats: This Month Due ৳ | Collected ৳ | Pending ৳ | Overdue Count
+Recent payments table (last 20):
+Receipt# | Student | Month | Amount | Method | Date | Receipt button
+
+TAB 2 GENERATE FEES:
+- Month + Year selector (default current)
+- Batch selector (or all)
+- Preview count: "X active non-suspended students will get fee records"
+- Note: "Suspended students are automatically skipped"
+- "Generate" button:
+  1. Fetch all active enrollments for selected batch
+  2. Skip students with status = 'suspended'
+  3. Create fee_record if not already exists
+  4. Skip existing records (no duplicates)
+  5. Show: "X fee records created, Y skipped (already exist), Z skipped (suspended)"
+
+TAB 3 RECORD PAYMENT:
+Search student (autocomplete by name/ID)
+On select: show unpaid fee records
+
+Payment form:
+- Student info card (name, ID, photo)
+- Select fee record (month/batch/amount)
+- Discount ৳ (optional) + reason
+- Final amount (auto = amount - discount)
+- Payment method: Cash | bKash | Nagad (styled radio cards)
+  bKash/Nagad: show number to send to + transaction ID field
+- Received by
+- Notes
+
+On save:
+1. Update fee_record
+2. Generate receipt_number: RCT-YYYYMMDD-XXXX
+3. Auto-send SMS option (checkbox checked by default):
+   "প্রিয় {name}, ৳{amount} ফি গ্রহণ করা হয়েছে। রশিদ: {receipt_no}। ধন্যবাদ - {institute}"
+4. Show "Print Receipt" button
+
+RECEIPT PDF (Bengali, A5):
+/src/lib/pdf.js — generateReceipt(record):
+Use jsPDF:
+- Institute name + address header
+- "ফি রশিদ / FEE RECEIPT"
+- Receipt#, Date, Student name, ID, Batch, Month
+- Amount table: Fee | Discount | Final
+- Payment method + transaction ID
+- Footer: thank you message
+
+TAB 4 DUE REPORT:
+Filter: this month | last month | 2+ months overdue | by batch
+Table: Student ID | Name | Batch | Month | Amount | Days Overdue | Phone | SMS
+"Send Reminder SMS" per row:
+"প্রিয় {name}, {month} মাসের ৳{amount} ফি বাকি আছে। দয়া করে পরিশোধ করুন। - {institute}"
+
+Bulk SMS: select multiple → "Send SMS to Selected" button
+
+--- SMSPage (/admin/sms) ---
+
+TABS: Send SMS | Templates | SMS Log | Settings
+
+TAB 1 SEND SMS:
+Recipients:
+- All Active Students
+- Students in Batch (dropdown)
+- Students with Due Fees (this month / overdue)
+- Selected Students (searchable multi-select)
+- Custom numbers (textarea, one per line)
+
+Recipient count shown: "X students selected (X phone numbers)"
+
+Message composer:
+- Template selector → auto-fills message
+- Variable tags panel: click to insert:
+  {নাম} {পরিমাণ} {মাস} {ব্যাচ} {ইনস্টিটিউট} {তারিখ}
+- Character counter: X chars (X SMS units)
+- Live preview with sample data
+
+"SMS পাঠান" btn-primary:
+- Confirm modal: "X নম্বরে SMS পাঠানো হবে। নিশ্চিত করুন।"
+- Progress bar while sending
+- Result: "X সফল, Y ব্যর্থ"
+
+TAB 2 TEMPLATES:
+Editable templates:
+FEE_REMINDER: "প্রিয় {নাম}, {মাস} মাসের ৳{পরিমাণ} ফি বাকি। পরিশোধ করুন। - {ইনস্টিটিউট}"
+FEE_PAID: "প্রিয় {নাম}, ৳{পরিমাণ} ফি গ্রহণ। রশিদ: {রশিদ_নং}। ধন্যবাদ। - {ইনস্টিটিউট}"
+EXAM_NOTICE: "পরীক্ষা: {শিরোনাম} — তারিখ: {তারিখ}, সময়: {সময়}। লিংক: {লিংক} - {ইনস্টিটিউট}"
+RESULT_OUT: "{পরীক্ষা} ফলাফল প্রকাশিত। পোর্টালে লগইন করুন। - {ইনস্টিটিউট}"
+NOTICE: "📢 {শিরোনাম}: {বার্তা} - {ইনস্টিটিউট}"
+APPROVED: "🎉 {নাম}, ভর্তি অনুমোদিত! আইডি: {আইডি}। পোর্টাল: {লিংক} - {ইনস্টিটিউট}"
+Each editable + save button
+
+TAB 3 SMS LOG:
+Table: Phone | Message | Type | Status | Time
+Filter by type/status/date
+
+TAB 4 SETTINGS:
+- MIMSMS API Key (masked, show/hide)
+- Sender ID
+- "Test SMS" button (sends to admin number)
+- Balance check button
+
+/src/lib/sms.js:
+export async function sendSMS(phones, message, type='custom') {
+  const phones_arr = Array.isArray(phones) ? phones : [phones];
+  const { data: settings } = await supabaseAdmin
+    .from('site_settings')
+    .select('key,value')
+    .in('key',['mimsms_api_key','mimsms_sender_id','institute_name']);
+
+  const cfg = Object.fromEntries(settings.map(s=>[s.key,s.value]));
+
+  const res = await fetch('https://api.mimsms.com/smsapi',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      api_key: cfg.mimsms_api_key,
+      senderid: cfg.mimsms_sender_id || 'CoachMS',
+      type: 'text',
+      scheduleat: '',
+      route: 'T',
+      contacts: phones_arr.join(','),
+      msg: message
+    })
+  });
+  const data = await res.json();
+
+  // Log to DB
+  await supabaseAdmin.from('sms_logs').insert(
+    phones_arr.map(p=>({ phone:p, message, type, status: data.status==='success'?'sent':'failed', response:data }))
+  );
+  return data;
+}
+
+export function fillTemplate(template, vars) {
+  return template.replace(/\{([^}]+)\}/g, (_,k) => vars[k] || '');
+}
+```
