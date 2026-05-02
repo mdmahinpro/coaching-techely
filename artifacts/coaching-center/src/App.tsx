@@ -25,6 +25,8 @@ import ReportsPage from '@/pages/admin/ReportsPage';
 import SettingsPage from '@/pages/admin/SettingsPage';
 import BackupPage from '@/pages/admin/BackupPage';
 
+import ExamPage from '@/pages/ExamPage';
+
 import PortalLoginPage from '@/pages/portal/PortalLoginPage';
 import PortalDashboardPage from '@/pages/portal/PortalDashboardPage';
 import PortalFeesPage from '@/pages/portal/PortalFeesPage';
@@ -73,6 +75,9 @@ function AppRoutes() {
         <Route path="/portal/results" element={<PortalResultsPage />} />
         <Route path="/portal/notices" element={<PortalNoticePage />} />
       </Route>
+
+      {/* Public exam page */}
+      <Route path="/exam/:examId" element={<ExamPage />} />
 
       {/* Admin redirect */}
       <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />

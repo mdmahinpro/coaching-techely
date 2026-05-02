@@ -1,0 +1,202 @@
+```
+Build the complete professional exam system.
+
+--- ExamsPage (/admin/exams) ---
+
+TABS: All Exams | Create Exam | Results
+
+TAB 1 ALL EXAMS:
+Table/Cards: Title | Batch | Questions | Status | Date | Actions
+
+Status badges:
+draft → badge-yellow "Draft"
+active → badge-green "চলছে" (pulsing dot)
+paused → badge-yellow "বিরতি"
+ended → badge-red "শেষ"
+
+Actions per exam:
+- Edit (draft only)
+- Manage Timer (Start/Pause/Stop/Set Time)
+- Share Link (WhatsApp)
+- View Results / Leaderboard
+- Delete (draft only)
+
+EXAM TIMER MANAGEMENT MODAL:
+When admin clicks "Manage Timer":
+Modal with large timer display:
+
+Current time remaining: MM:SS (large, countdown style)
+Or "Not Started" if draft
+
+Controls:
+▶ Start Exam — sets start_time=now, end_time=now+duration, status=active
+⏸ Pause — status=paused, records remaining time
+▶ Resume — status=active, recalculates end_time
+⏹ End Exam — status=ended, no more submissions accepted
+⏱ Set Custom Time — input field (minutes), updates duration_minutes
+  "Apply" button: if exam active → updates end_time = now + new_minutes
+
+Show: "X students have submitted" live count (Supabase realtime)
+Show: WhatsApp share link button
+
+Important rules:
+- After end_time or status=ended: exam page shows "পরীক্ষার সময় শেষ"
+- Admin can extend time by setting custom time while exam is active
+- Admin can stop exam instantly with End button
+
+TAB 2 CREATE EXAM:
+Step 1 — Exam Info:
+- Title
+- Batch (select)
+- Subject
+- Exam Date + Time
+- Duration (minutes) — default 30
+- Timer Enabled toggle (if disabled: no countdown, submit anytime before end)
+- Pass Marks
+- Instructions (textarea)
+
+Step 2 — Add Questions:
+Question builder:
+- "+ প্রশ্ন যোগ করুন" button adds a new question card
+- Each question card (card bg, rounded):
+  * Q number badge (sky-400)
+  * Question text (textarea, required)
+  * Options A, B, C, D (text inputs, color coded)
+  * Correct answer: 4 pill buttons (A|B|C|D)
+    Selected: filled sky-400, others: outlined
+  * Marks: number input (default 1)
+  * Delete question (×) button
+  * Drag handle for reorder (framer-motion drag)
+- Questions reorderable by drag
+- Total marks auto-calculated + displayed
+
+BULK IMPORT button:
+Modal with textarea, format:
+Q: প্রশ্নের টেক্সট
+A: অপশন এ
+B: অপশন বি
+C: অপশন সি
+D: অপশন ডি
+ANS: B
+MARKS: 1
+---
+(next question)
+Parse on submit, create questions array, preview before saving.
+
+Step 3 — Preview & Save:
+Shows full exam preview as student would see it
+"Save as Draft" btn-outline
+"Save & Publish" btn-primary (sets status to draft, can activate later)
+
+After save: shows shareable exam link + WhatsApp share button
+Link format: {site_url}/exam/{exam_id}
+
+TAB 3 RESULTS / LEADERBOARD:
+Select exam → shows full results
+
+LEADERBOARD (default view):
+Rank | Avatar | Student Name | Student ID | Score | Correct | Wrong | Time | Date
+
+Rank 1: gold trophy + gold bg glow
+Rank 2: silver
+Rank 3: bronze
+Others: number
+
+Score shown as: 18/20 (90%)
+Time shown as: 4m 32s
+
+Recalculate Ranks button (recalculates and updates mcq_submissions.rank)
+
+ANSWER BREAKDOWN:
+Click any student row → shows question-by-question:
+Q1: selected B (correct ✓) | Q2: selected A (wrong ✗, correct was C)
+
+Export Results CSV button
+
+--- EXAM TAKING PAGE (/exam/:examId) ---
+
+PUBLIC PAGE (no login required initially):
+
+STEP 1 — IDENTITY VERIFICATION:
+Card centered, dark bg:
+- Exam title + batch name
+- "আপনার Student ID লিখুন" input
+- "শুরু করুন" button
+- On submit:
+  1. Check student exists with that ID
+  2. Check is_approved = true
+  3. If not approved: "আপনি এখনো অনুমোদিত হননি। Admin এর সাথে যোগাযোগ করুন।" error
+  4. Check exam status: if ended → "পরীক্ষার সময় শেষ হয়েছে"
+  5. Check already submitted: if yes → show their result
+  6. If all ok → proceed to exam
+
+STEP 2 — EXAM INSTRUCTIONS:
+- Exam title, subject, total marks
+- Duration + instructions
+- Rules list: No refresh | One answer per question | Auto-submit on timeout
+- "পরীক্ষা শুরু করুন" big btn-primary
+
+STEP 3 — EXAM INTERFACE:
+
+HEADER (sticky):
+- Institute name + exam title
+- TIMER (large, center): MM:SS countdown
+  Normal: sky-400 color
+  Under 5 min: amber-400
+  Under 1 min: red-400 + pulse animation
+- Progress: "Q 5 / 20" + progress bar
+- Submit button (top right)
+
+If timer_enabled=false: show "No time limit" instead of timer
+If exam status becomes 'ended' during exam: auto-submit immediately with warning
+
+QUESTION AREA:
+One question at a time:
+- Question number + marks badge
+- Question text (large, Hind Siliguri, readable)
+- 4 option cards:
+  Default: card bg, border navy-600
+  Hover: border sky-400/50
+  Selected: bg-sky-400/15 border-sky-400 text-sky-400
+  Each: full width, large padding, flex with letter badge (A/B/C/D) + text
+  Mobile: full tap area, min-h-[60px]
+
+NAVIGATION:
+- Previous / Next buttons (large, full width on mobile)
+- Question grid (bottom or sidebar desktop):
+  Small numbered circles: white=unanswered, sky=answered
+  Click to jump to question
+
+AUTO-SAVE: save answers to localStorage every 10 seconds (survive refresh)
+On page load: restore from localStorage if same exam
+
+SUBMISSION:
+Manual submit: confirm modal
+  "আপনি নিশ্চিত? X প্রশ্নের উত্তর দেননি।"
+  "Submit করুন" btn-primary | "ফিরে যাই" btn-outline
+
+Auto-submit when timer hits 0:
+- Save whatever answered
+- Show "সময় শেষ! স্বয়ংক্রিয়ভাবে জমা হয়েছে।" toast
+
+GRADING ON SUBMIT:
+1. Compare each answer with correct_option
+2. Calculate score, correct_count, wrong_count
+3. time_taken = duration*60 - remaining_seconds
+4. Save to mcq_submissions
+5. Calculate rank: count submissions with higher score, then lower time
+6. Update rank field
+
+RESULT PAGE (after submit):
+Card centered:
+- 🎉 or 😔 based on pass/fail
+- "আপনার স্কোর: 18/20"
+- Score circle (big, sky-400 ring animation filling up to score%)
+- Correct: X | Wrong: Y | Unanswered: Z
+- Time taken
+- "আপনার র‍্যাংক: #3" (gold/silver/bronze icon for top 3)
+- LEADERBOARD preview: top 5 with student's position highlighted
+- "বিস্তারিত দেখুন" → answer breakdown
+- Answer breakdown: each question with student answer + correct answer
+  Correct: green check | Wrong: red × + correct answer shown
+```
