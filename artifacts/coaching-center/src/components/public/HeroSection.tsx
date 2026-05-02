@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Users, BookOpen, Award, TrendingUp } from 'lucide-react';
 import { useSettingsStore } from '@/store/useSettingsStore';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useIntersection } from '@/hooks/useIntersection';
 
 function useCountUp(target: number, duration = 1800, active = false) {
@@ -38,8 +38,7 @@ const codeLines = [
 
 export function HeroSection() {
   const { settings } = useSettingsStore();
-  const statsRef = useRef<HTMLDivElement>(null);
-  const statsVisible = useIntersection(statsRef, { threshold: 0.3 });
+  const { ref: statsRef, isVisible: statsVisible } = useIntersection({ threshold: 0.3 });
 
   const counts = [
     useCountUp(1200, 1600, statsVisible),
