@@ -19,7 +19,7 @@ const schema = z.object({
   batch_id: z.string().optional(),
   status: z.enum(['active', 'inactive']).default('active'),
   is_approved: z.boolean().default(true),
-  portal_password: z.string().optional(),
+  password: z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -114,7 +114,7 @@ export function StudentModal({ open, student, batches = [], onSave, onClose }: P
         batch_id: student?.batch_id ?? '',
         status: (student?.status as 'active' | 'inactive') ?? 'active',
         is_approved: student?.is_approved ?? true,
-        portal_password: '',
+        password: '',
       });
       setPhotoFile(null);
       setPhotoPreview(student?.photo_url ?? null);
@@ -125,7 +125,7 @@ export function StudentModal({ open, student, batches = [], onSave, onClose }: P
   // Auto-fill portal password from guardian phone
   useEffect(() => {
     const pw = (guardianPhone || phone || '').slice(-6);
-    if (pw) setValue('portal_password', pw);
+    if (pw) setValue('password', pw);
   }, [guardianPhone, phone]);
 
   const handlePhotoSelect = (file: File) => {
@@ -329,7 +329,7 @@ export function StudentModal({ open, student, batches = [], onSave, onClose }: P
                     <p className="font-mono text-sky-400 text-xs">{phone ? `${phone}@coaching.local` : '—'}</p>
                   </div>
                   <Field label="Portal Password">
-                    <input {...register('portal_password')} className="input-field font-mono text-sm" placeholder="Last 6 digits" />
+                    <input {...register('password')} className="input-field font-mono text-sm" placeholder="Last 6 digits" />
                   </Field>
                 </div>
               </div>

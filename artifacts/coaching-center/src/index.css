@@ -80,7 +80,16 @@
   ::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 3px; }
   ::selection { background: rgba(56,189,248,0.3); }
   * { -webkit-tap-highlight-color: transparent; }
-  input, textarea, select { font-size: 16px !important; }
+  input, textarea, select { font-size: 16px !important; color: #f8fafc; }
+  select option { background-color: #1e293b; color: #f8fafc; }
+  /* Prevent any inherited black text inside admin layout */
+  [class*="card"] *, [class*="modal"] *, [class*="drawer"] * { color: inherit; }
+  /* Recharts default tooltip override */
+  .recharts-default-tooltip { background: #0f172a !important; border: 1px solid #1e293b !important; border-radius: 8px !important; color: #f8fafc !important; }
+  .recharts-tooltip-label { color: #94a3b8 !important; }
+  .recharts-tooltip-item { color: #f8fafc !important; }
+  /* Table cells inherit white */
+  td, th { color: inherit; }
 }
 
 @layer components {

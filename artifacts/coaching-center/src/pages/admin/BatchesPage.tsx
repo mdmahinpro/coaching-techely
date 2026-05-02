@@ -88,7 +88,7 @@ export default function BatchesPage() {
       class_level: editing.class_level ?? null,
       teacher_id: editing.teacher_id ?? null,
       schedule_days: editing.schedule_days ?? [],
-      schedule_time: editing.schedule_time ?? null,
+      start_time: editing.schedule_time ?? null,
       capacity: editing.capacity ?? 30,
       monthly_fee: editing.monthly_fee ?? 1500,
       fee: editing.monthly_fee ?? 1500,
