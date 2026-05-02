@@ -1,75 +1,172 @@
 import { useEffect, useState } from 'react';
 import { PortalLayout } from '@/components/portal/PortalLayout';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/useAuthStore';
-import { formatDate } from '@/lib/utils';
-import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
-import { EmptyState } from '@/components/shared/EmptyState';
-import { FileText, Calendar } from 'lucide-react';
+import { useStudentStore } from '@/store/useStudentStore';
+import { formatDate, cn } from '@/lib/utils';
+import { ClipboardList, Clock, Trophy, PlayCircle, Loader2, ChevronRight } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
+
+interface Exam {
+  id: string;
+  title: string;
+  subject: string;
+  exam_date: string;
+  duration_minutes: number;
+  total_marks: number;
+  pass_marks: number;
+  status: 'draft' | 'active' | 'paused' | 'ended';
+  start_time?: string;
+  end_time?: string;
+  type?: string;
+}
+
+function useCountdown(target?: string) {
+  const [remaining, setRemaining] = useState('');
+  useEffect(() => {
+    if (!target) return;
+    const calc = () => {
+      const diff = new Date(target).getTime() - Date.now();
+      if (diff <= 0) { setRemaining(''); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setRemaining(h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`);
+    };
+    calc();
+    const t = setInterval(calc, 1000);
+    return () => clearInterval(t);
+  }, [target]);
+  return remaining;
+}
+
+function ExamCard({ exam, myResult }: { exam: Exam; myResult?: any }) {
+  const countdown = useCountdown(exam.start_time && exam.status === 'draft' ? exam.start_time : undefined);
+  const isActive = exam.status === 'active';
+  const isEnded = exam.status === 'ended';
+  const notStarted = exam.status === 'draft';
+
+  return (
+    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className={cn('card p-4 border-l-4 transition-all',
+        isActive ? 'border-l-emerald-400 bg-emerald-400/[0.02]' : isEnded ? 'border-l-slate-600' : 'border-l-sky-400/30')}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <h3 className={cn('font-semibold font-hind', isEnded && !myResult ? 'text-slate-400' : 'text-white')}>{exam.title}</h3>
+            <span className={cn('text-xs',
+              isActive ? 'badge-green' : isEnded ? 'badge-red' : exam.status === 'paused' ? 'badge-yellow' : 'badge-blue')}>
+              {isActive ? 'চলছে' : isEnded ? 'শেষ' : exam.status === 'paused' ? 'বিরতি' : 'আসছে'}
+            </span>
+          </div>
+          <p className="text-slate-400 text-xs mb-2 font-hind">{exam.subject} · {exam.duration_minutes} মিনিট · {exam.total_marks} নম্বর</p>
+
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1"><Clock size={11} /> {formatDate(exam.exam_date)}</span>
+            {countdown && <span className="text-sky-400 font-medium">শুরু: {countdown} পরে</span>}
+          </div>
+
+          {myResult && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-emerald-400 text-xs font-medium">{myResult.score}/{exam.total_marks}</span>
+              <span className="text-slate-500 text-xs">({Math.round((myResult.score / exam.total_marks) * 100)}%)</span>
+              {myResult.rank && <span className="badge-violet text-xs">#{myResult.rank}</span>}
+            </div>
+          )}
+        </div>
+
+        <div className="shrink-0 flex flex-col gap-2 items-end">
+          {isActive && (
+            <Link to={`/exam/${exam.id}`} className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 animate-pulse-slow">
+              <PlayCircle size={13} /> পরীক্ষা দিন
+            </Link>
+          )}
+          {isEnded && myResult && (
+            <Link to="/portal/results" className="btn-outline text-xs py-1.5 px-3 flex items-center gap-1">
+              ফলাফল <ChevronRight size={12} />
+            </Link>
+          )}
+          {isEnded && !myResult && (
+            <span className="text-slate-500 text-xs font-hind">অংশগ্রহণ করেননি</span>
+          )}
+          {notStarted && (
+            <span className="text-slate-600 text-xs font-hind">শুরু হয়নি</span>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 export default function PortalExamsPage() {
-  const { user } = useAuthStore();
-  const [exams, setExams] = useState<any[]>([]);
+  const { student } = useStudentStore();
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [myResults, setMyResults] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!student) return;
     const load = async () => {
-      if (!user) return;
-      const { data: student } = await supabase.from('students').select('batch_id').eq('email', user.email!).single();
       let q = supabase.from('exams').select('*').order('exam_date', { ascending: false });
-      if (student?.batch_id) q = q.or(`batch_id.eq.${student.batch_id},batch_id.is.null`);
-      const { data } = await q;
-      setExams(data ?? []);
+      if (student.batch_id) q = q.or(`batch_id.eq.${student.batch_id},batch_id.is.null`);
+      const { data: examData } = await q;
+      setExams((examData ?? []) as Exam[]);
+
+      const { data: subs } = await supabase.from('mcq_submissions')
+        .select('exam_id,score,rank').eq('student_id', student.id);
+      const map: Record<string, any> = {};
+      (subs ?? []).forEach(s => { map[s.exam_id] = s; });
+      setMyResults(map);
       setLoading(false);
     };
     load();
-  }, [user]);
+  }, [student]);
 
-  const upcoming = exams.filter(e => new Date(e.exam_date) >= new Date());
-  const past = exams.filter(e => new Date(e.exam_date) < new Date());
+  const active = exams.filter(e => e.status === 'active' || e.status === 'paused');
+  const upcoming = exams.filter(e => e.status === 'draft');
+  const ended = exams.filter(e => e.status === 'ended');
 
   return (
     <PortalLayout>
-      <h1 className="font-inter font-bold text-2xl text-white mb-6">Exams</h1>
-      {loading ? <LoadingSkeleton rows={4} /> : exams.length === 0 ? (
-        <EmptyState title="No exams scheduled" icon={<FileText size={48} strokeWidth={1.2} />} />
+      <h1 className="font-inter font-bold text-xl text-white mb-5 font-hind flex items-center gap-2">
+        <ClipboardList size={20} className="text-sky-400" /> পরীক্ষা
+      </h1>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-sky-400" /></div>
+      ) : exams.length === 0 ? (
+        <div className="card p-12 text-center"><p className="text-slate-500 font-hind">কোনো পরীক্ষা নির্ধারিত নেই</p></div>
       ) : (
         <div className="space-y-6">
-          {upcoming.length > 0 && (
-            <div>
-              <h2 className="font-semibold text-sky-400 mb-3 flex items-center gap-2"><Calendar size={16} /> Upcoming</h2>
+          {active.length > 0 && (
+            <section>
+              <h2 className="text-emerald-400 text-sm font-semibold mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> এখন চলছে
+              </h2>
               <div className="space-y-3">
-                {upcoming.map(e => (
-                  <div key={e.id} className="card-glass p-4 flex items-center justify-between gap-4">
-                    <div>
-                      <h3 className="font-semibold text-white">{e.title}</h3>
-                      <p className="text-slate-400 text-sm mt-0.5">{e.subject} · {e.duration_minutes} min · {e.total_marks} marks (pass: {e.pass_marks})</p>
-                      {e.instructions && <p className="text-slate-500 text-xs mt-1 line-clamp-1">{e.instructions}</p>}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="badge-violet">{formatDate(e.exam_date)}</span>
-                      <p className="text-xs text-slate-500 mt-1 capitalize">{e.type}</p>
-                    </div>
-                  </div>
-                ))}
+                {active.map(e => <ExamCard key={e.id} exam={e} myResult={myResults[e.id]} />)}
               </div>
-            </div>
+            </section>
           )}
-          {past.length > 0 && (
-            <div>
-              <h2 className="font-semibold text-slate-400 mb-3">Past Exams</h2>
+          {upcoming.length > 0 && (
+            <section>
+              <h2 className="text-sky-400 text-sm font-semibold mb-3 flex items-center gap-2">
+                <Clock size={13} /> আসন্ন পরীক্ষা
+              </h2>
               <div className="space-y-3">
-                {past.map(e => (
-                  <div key={e.id} className="card p-4 flex items-center justify-between gap-4 opacity-70">
-                    <div>
-                      <h3 className="font-medium text-white">{e.title}</h3>
-                      <p className="text-slate-400 text-sm mt-0.5">{e.subject} · {e.total_marks} marks</p>
-                    </div>
-                    <span className="badge-yellow">{formatDate(e.exam_date)}</span>
-                  </div>
-                ))}
+                {upcoming.map(e => <ExamCard key={e.id} exam={e} myResult={myResults[e.id]} />)}
               </div>
-            </div>
+            </section>
+          )}
+          {ended.length > 0 && (
+            <section>
+              <h2 className="text-slate-400 text-sm font-semibold mb-3 flex items-center gap-2">
+                <Trophy size={13} /> সমাপ্ত পরীক্ষা
+              </h2>
+              <div className="space-y-3">
+                {ended.map(e => <ExamCard key={e.id} exam={e} myResult={myResults[e.id]} />)}
+              </div>
+            </section>
           )}
         </div>
       )}

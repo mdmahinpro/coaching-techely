@@ -1,0 +1,102 @@
+```
+Build student portal and settings page.
+
+--- Portal Login (/portal/login) ---
+Same dark design, centered card
+Phone + password inputs
+"লগইন করুন" button
+Auth: query students table by phone + verify password
+Check is_approved: if false → "আপনার অ্যাকাউন্ট এখনো অনুমোদিত হয়নি।"
+Check status: if suspended → "আপনার অ্যাকাউন্ট সাময়িকভাবে স্থগিত করা হয়েছে।"
+On success: store student in sessionStorage → /portal/dashboard
+
+STUDENT SIGNUP (/portal/signup):
+Route: /portal/signup
+Fields: Full Name, Guardian Name, Phone, Email (optional), Address, Class Level, Select Batch
+On submit → save to admission_applications with status='pending'
+Message: "আবেদন সফল! অনুমোদনের পর লগইন করতে পারবেন।"
+Note on page: "শুধুমাত্র অনুমোদিত ছাত্ররা পরীক্ষায় অংশ নিতে পারবে"
+
+--- Portal Layout ---
+Top navbar: logo + student name + ID + logout
+Bottom tab bar (mobile): Home | Fees | Exams | Results | Notices
+Left sidebar (desktop): same nav
+
+--- PortalDashboardPage ---
+Welcome card: "স্বাগতম, {name}! 👋" + student ID + class + batch chips
+Quick stats: Fee Status | Exam Count | Best Score | Unread Notices
+Active exam alert: if any exam status=active for student's batch:
+  Pulsing green card: "{exam title} এখন চলছে! অংশ নিন →" → /exam/{id}
+Recent notices (3)
+Recent exam results (3)
+
+--- PortalFeesPage ---
+Fee cards by month:
+paid: card green border + "পরিশোধিত" badge + date + "Receipt" button
+unpaid: card red border + "বকেয়া" badge + amount
+  Payment info: "bKash: {number}" + "Nagad: {number}"
+  "Send Money" link buttons (opens bKash/Nagad app or wa.me)
+waived: gray + "মওকুফ"
+
+--- PortalExamsPage ---
+Upcoming exams for student's batch:
+- Exam card: title, subject, date, time, duration, marks
+- Status badge + timer if active
+- "পরীক্ষা দিন" btn-primary → /exam/{id} (if active)
+- "শেষ হয়েছে" if ended (shows result link)
+- Grayed out if not started yet with countdown to start time
+
+Past exams: list with score + rank
+
+--- PortalResultsPage ---
+All MCQ submissions:
+Exam | Date | Score | Rank | Time | Details button
+Details → answer breakdown (same as exam result page)
+Download result card button (PDF with score, grade, rank)
+
+--- PortalNoticePage ---
+All published notices for student's batch + all
+Filter by type
+Unread: bold + sky-400 dot
+Mark read on open
+
+--- Student Profile (/portal/profile) ---
+View profile info
+CHANGE PROFILE PICTURE:
+- Click photo → file picker
+- Max 300KB enforced:
+  if file.size > 300*1024: toast error "ছবির সাইজ ৩০০KB এর বেশি হওয়া যাবে না"
+- Compress with canvas if needed before upload
+- Upload to Supabase Storage
+- Update students.photo_url
+- Success toast
+
+Change password form:
+- Current password | New password | Confirm
+- Save button
+
+--- SettingsPage (/admin/settings) ---
+
+TABS: Institute | Payment | SMS | Homepage Stats | Social | Appearance | Admin Accounts
+
+Institute: name, tagline, address, phone, email, whatsapp, logo upload, banner upload, hero title/subtitle, admission_open toggle
+
+Payment: bKash number, Nagad number, admission fee amount
+
+SMS: MIMSMS API key, sender ID, test SMS, balance check
+
+Stats: students, teachers, batches, success rate (manual or auto-from-DB toggle)
+
+Social: Facebook, YouTube, Instagram URLs
+
+Appearance: primary color picker (updates --primary CSS var live)
+admission_open toggle: if false → hides admission form on public site
+
+Admin Accounts:
+List admin users (from Supabase Auth)
+Add new admin (email + password)
+Change own password
+
+Sticky "সেটিংস সংরক্ষণ করুন" btn-primary at bottom
+Success toast: "✅ সেটিংস সংরক্ষিত হয়েছে"
+```

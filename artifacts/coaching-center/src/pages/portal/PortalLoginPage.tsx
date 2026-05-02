@@ -1,78 +1,131 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { GraduationCap, Lock, Hash, Eye, EyeOff } from 'lucide-react';
-import { useAuthStore } from '@/store/useAuthStore';
+import { GraduationCap, Phone, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useStudentStore } from '@/store/useStudentStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import toast from 'react-hot-toast';
-import { Link } from 'react-router-dom';
-
-const schema = z.object({
-  email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Password required'),
-});
-type F = z.infer<typeof schema>;
 
 export default function PortalLoginPage() {
-  const [showPw, setShowPw] = useState(false);
-  const { signIn } = useAuthStore();
   const navigate = useNavigate();
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<F>({ resolver: zodResolver(schema) });
+  const { setStudent } = useStudentStore();
+  const { settings } = useSettingsStore();
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errMsg, setErrMsg] = useState('');
 
-  const onSubmit = async (data: F) => {
-    const { error } = await signIn(data.email, data.password);
-    if (error) { toast.error(error); return; }
-    toast.success('Welcome back!');
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone || !password) { setErrMsg('ফোন নম্বর ও পাসওয়ার্ড দিন'); return; }
+    setLoading(true);
+    setErrMsg('');
+
+    const { data, error } = await supabase
+      .from('students')
+      .select('*, batch:batches(name)')
+      .eq('phone', phone.trim())
+      .eq('password', password)
+      .single();
+
+    setLoading(false);
+
+    if (error || !data) {
+      setErrMsg('ফোন নম্বর বা পাসওয়ার্ড ভুল।');
+      return;
+    }
+
+    if (!data.is_approved) {
+      setErrMsg('আপনার অ্যাকাউন্ট এখনো অনুমোদিত হয়নি। অনুমোদনের পর লগইন করতে পারবেন।');
+      return;
+    }
+
+    if (data.status === 'suspended') {
+      setErrMsg('আপনার অ্যাকাউন্ট সাময়িকভাবে স্থগিত করা হয়েছে। যোগাযোগ করুন: ' + settings.centerPhone);
+      return;
+    }
+
+    setStudent({
+      id: data.id,
+      name: data.name,
+      student_id: data.student_id,
+      phone: data.phone,
+      email: data.email,
+      class_level: data.class_level,
+      batch_id: data.batch_id,
+      batch_name: (data as any).batch?.name,
+      photo_url: data.photo_url,
+      status: data.status,
+      is_approved: data.is_approved,
+    });
+
+    toast.success(`স্বাগতম, ${data.name}!`);
     navigate('/portal/dashboard');
   };
 
   return (
     <div className="min-h-screen bg-navy-900 flex items-center justify-center p-4">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/3 right-1/3 w-96 h-96 bg-violet-500/8 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/3 left-1/3 w-96 h-96 bg-sky-500/8 rounded-full blur-3xl" />
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-1/4 right-1/4 w-80 h-80 bg-violet-500/6 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-sky-500/6 rounded-full blur-3xl" />
       </div>
-      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md relative">
+
+      <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm relative">
         <div className="card-glass p-8">
-          <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-sky-500 flex items-center justify-center mx-auto mb-4">
-              <GraduationCap size={28} className="text-white" />
+          <div className="text-center mb-7">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-sky-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-violet-500/25">
+              <GraduationCap size={26} className="text-white" />
             </div>
-            <h1 className="font-inter font-black text-2xl text-white mb-1">Student Portal</h1>
-            <p className="text-slate-400 text-sm">Sign in to access your dashboard</p>
+            <h1 className="font-inter font-black text-xl text-white mb-1">ছাত্র পোর্টাল</h1>
+            <p className="text-slate-400 text-sm">{settings.centerName}</p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="text-xs text-slate-400 mb-1.5 block">Email</label>
+              <label className="text-xs text-slate-400 mb-1.5 block">ফোন নম্বর</label>
               <div className="relative">
-                <Hash size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input {...register('email')} className="input-field pl-9" placeholder="student@example.com" />
+                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input value={phone} onChange={e => setPhone(e.target.value)} className="input-field pl-9"
+                  placeholder="01XXXXXXXXX" type="tel" autoComplete="tel" />
               </div>
-              {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
             </div>
             <div>
-              <label className="text-xs text-slate-400 mb-1.5 block">Password</label>
+              <label className="text-xs text-slate-400 mb-1.5 block">পাসওয়ার্ড</label>
               <div className="relative">
-                <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                <input {...register('password')} type={showPw ? 'text' : 'password'} className="input-field pl-9 pr-10" placeholder="••••••••" />
-                <button type="button" onClick={() => setShowPw(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input value={password} onChange={e => setPassword(e.target.value)} type={showPw ? 'text' : 'password'}
+                  className="input-field pl-9 pr-10" placeholder="••••••••" autoComplete="current-password" />
+                <button type="button" onClick={() => setShowPw(s => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                  {showPw ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
-              {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password.message}</p>}
             </div>
-            <button type="submit" disabled={isSubmitting} className="btn-secondary w-full justify-center py-3 mt-2">
-              {isSubmitting ? 'Signing in…' : 'Sign In'}
+
+            {errMsg && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-red-400 text-sm font-hind leading-relaxed">
+                {errMsg}
+              </motion.div>
+            )}
+
+            <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3 mt-1 text-base font-hind">
+              {loading ? <Loader2 size={17} className="animate-spin" /> : 'লগইন করুন'}
             </button>
           </form>
 
-          <p className="text-center text-xs text-slate-500 mt-6">
-            Not a student?{' '}
-            <Link to="/" className="text-sky-400 hover:underline">Go to home</Link>
-          </p>
+          <div className="mt-6 space-y-2 text-center">
+            <p className="text-slate-500 text-xs">
+              নতুন ভর্তি হতে চান?{' '}
+              <Link to="/portal/signup" className="text-sky-400 hover:underline">আবেদন করুন</Link>
+            </p>
+            <p className="text-slate-600 text-xs">
+              Admin?{' '}
+              <Link to="/admin/login" className="text-slate-400 hover:text-white">Admin Panel</Link>
+            </p>
+          </div>
         </div>
       </motion.div>
     </div>
