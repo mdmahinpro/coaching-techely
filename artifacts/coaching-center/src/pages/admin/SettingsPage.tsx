@@ -19,7 +19,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
 ];
 
 export default function SettingsPage() {
-  const { settings, updateSettings } = useSettingsStore();
+  const { settings, updateSettings, saveToDB } = useSettingsStore();
   const [tab, setTab] = useState<Tab>('institute');
   const [form, setForm] = useState({ ...settings });
   const [saving, setSaving] = useState(false);
@@ -69,19 +69,7 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     updateSettings(form);
-    // Also persist key settings to Supabase site_settings
-    const entries = [
-      { key: 'institute_name', value: form.centerName },
-      { key: 'tagline', value: form.centerTagline },
-      { key: 'phone', value: form.centerPhone },
-      { key: 'email', value: form.centerEmail },
-      { key: 'admission_open', value: String(form.admissionOpen) },
-      { key: 'bkash_number', value: form.bkashNumber },
-      { key: 'nagad_number', value: form.nagadNumber },
-    ];
-    for (const entry of entries) {
-      await supabase.from('site_settings').upsert(entry, { onConflict: 'key' });
-    }
+    await saveToDB(form);
     setSaving(false);
     toast.success('✅ সেটিংস সংরক্ষিত হয়েছে');
   };

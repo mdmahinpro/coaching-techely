@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { StudentProtectedRoute } from '@/components/StudentProtectedRoute';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -106,7 +107,11 @@ function AppRoutes() {
 
 function App() {
   const { initialize } = useAuthStore();
-  useEffect(() => { initialize(); }, []);
+  const { loadFromDB } = useSettingsStore();
+  useEffect(() => {
+    initialize();
+    loadFromDB();
+  }, []);
   const base = import.meta.env.BASE_URL.replace(/\/$/, '') || '/';
   return (
     <ErrorBoundary>
