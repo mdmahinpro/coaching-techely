@@ -103,6 +103,9 @@ artifacts/coaching-center/src/
     public/                 # PublicNavbar, Footer, HeroSection, BatchCard
     admin/                  # AdminLayout, AdminSidebar, AdminHeader, StatsCard, DataTable,
                             # StudentModal (rebuilt), StudentDrawer (new), SuspendModal (new)
+  lib/
+    sms.ts                  # sendSMS (MIMSMS API), fillTemplate, SMS_TEMPLATES dict
+    pdf.ts                  # generateReceipt (jsPDF, A5 Bengali receipt)
     portal/                 # PortalLayout, PortalNav
     shared/                 # AnimatedSection, LoadingSkeleton, EmptyState, Avatar, ConfirmDialog
     ProtectedRoute.tsx
