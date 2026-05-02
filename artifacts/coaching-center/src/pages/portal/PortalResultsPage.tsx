@@ -208,9 +208,11 @@ export default function PortalResultsPage() {
                 {breakdownLoading ? (
                   <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-sky-400" /></div>
                 ) : breakdown ? breakdown.questions.map((q, i) => {
-                  const studentAns = breakdown.sub.answers?.[q.id];
-                  const isCorrect = studentAns === q.correct_option;
-                  const opts: Record<string, string> = { a: q.option_a, b: q.option_b, c: q.option_c, d: q.option_d };
+                  // Normalise both to uppercase for comparison (DB stores lowercase, UI stores uppercase)
+                  const studentAns = breakdown.sub.answers?.[q.id]?.toUpperCase();
+                  const correctOpt = q.correct_option.toUpperCase();
+                  const isCorrect = !!studentAns && studentAns === correctOpt;
+                  const opts: Record<string, string> = { A: q.option_a, B: q.option_b, C: q.option_c, D: q.option_d };
                   return (
                     <div key={q.id} className={cn('rounded-xl p-3 border', isCorrect ? 'bg-emerald-400/5 border-emerald-400/20' : 'bg-red-400/5 border-red-400/20')}>
                       <p className="text-white text-sm font-medium mb-2 font-hind">
@@ -219,7 +221,7 @@ export default function PortalResultsPage() {
                       <div className="grid grid-cols-2 gap-1.5">
                         {Object.entries(opts).filter(([, v]) => v).map(([k, v]) => {
                           const isStudentChoice = studentAns === k;
-                          const isCorrectChoice = q.correct_option === k;
+                          const isCorrectChoice = correctOpt === k;
                           return (
                             <div key={k} className={cn('rounded-lg px-2.5 py-1.5 text-xs flex items-center gap-1.5',
                               isCorrectChoice ? 'bg-emerald-400/20 text-emerald-400 border border-emerald-400/30' :

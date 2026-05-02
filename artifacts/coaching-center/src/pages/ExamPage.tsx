@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { useStudentStore } from '@/store/useStudentStore';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -88,13 +89,42 @@ export default function ExamPage() {
   // ── Load exam ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!examId) return;
+    const { student: sessionStudent } = useStudentStore.getState();
+
     Promise.all([
       supabase.from('exams').select('*, batch:batches(name)').eq('id', examId).single(),
       supabase.from('mcq_questions').select('*').eq('exam_id', examId).order('order_num'),
-    ]).then(([{ data: e }, { data: q }]) => {
+    ]).then(async ([{ data: e }, { data: q }]) => {
       if (!e) { setStep('ended'); return; }
       setExam(e as ExamData);
-      setQuestions((q ?? []) as Question[]);
+      // Normalise correct_option to uppercase (DB stores a/b/c/d)
+      const normalised = (q ?? []).map((qq: any) => ({
+        ...qq,
+        correct_option: (qq.correct_option as string).toUpperCase() as 'A'|'B'|'C'|'D',
+      }));
+      setQuestions(normalised as Question[]);
+
+      // If the exam is ended, still allow viewing if student submitted
+      // (will be handled below). If no session and ended, show ended screen.
+      if (e.status === 'ended' && !sessionStudent) { setStep('ended'); return; }
+
+      // Auto-login from portal session
+      if (sessionStudent) {
+        setStudent(sessionStudent);
+        // Check already submitted
+        const { data: existing } = await supabase.from('mcq_submissions')
+          .select('*').eq('exam_id', examId).eq('student_id', sessionStudent.id).single();
+        if (existing) {
+          setSubmission(existing as Submission);
+          loadLeaderboard();
+          setStep(e.status === 'ended' ? 'already-submitted' : 'already-submitted');
+          return;
+        }
+        if (e.status === 'ended') { setStep('ended'); return; }
+        setStep('instructions');
+        return;
+      }
+
       if (e.status === 'ended') { setStep('ended'); return; }
       setStep('verify');
     });
