@@ -60,11 +60,21 @@ function SendSMSTab() {
       setRecipientCount(nums.length);
       return;
     }
+    if (recipientType === 'due') {
+      const feeStatus = dueFilter === 'overdue' ? 'overdue' : 'pending';
+      const { data: feeRows } = await supabase
+        .from('fees')
+        .select('student_id')
+        .eq('status', feeStatus);
+      const uniqueIds = new Set((feeRows ?? []).map((f: any) => f.student_id).filter(Boolean));
+      setRecipientCount(uniqueIds.size);
+      return;
+    }
     let q = supabase.from('students').select('*', { count: 'exact', head: true }).eq('status', 'active');
     if (recipientType === 'batch' && batchId) q = q.eq('batch_id', batchId);
     const { count } = await q;
     setRecipientCount(count ?? 0);
-  }, [recipientType, batchId, customNumbers]);
+  }, [recipientType, batchId, customNumbers, dueFilter]);
 
   useEffect(() => { countRecipients(); }, [countRecipients]);
 
@@ -86,6 +96,21 @@ function SendSMSTab() {
     let phones: string[] = [];
     if (recipientType === 'custom') {
       phones = customNumbers.split('\n').map(n => n.trim()).filter(Boolean);
+    } else if (recipientType === 'due') {
+      const feeStatus = dueFilter === 'overdue' ? 'overdue' : 'pending';
+      const { data: feeRows } = await supabase
+        .from('fees')
+        .select('student_id')
+        .eq('status', feeStatus);
+      const studentIds = [...new Set((feeRows ?? []).map((f: any) => f.student_id).filter(Boolean))];
+      if (studentIds.length > 0) {
+        const { data: studs } = await supabase
+          .from('students')
+          .select('phone')
+          .in('id', studentIds)
+          .not('phone', 'is', null);
+        phones = (studs ?? []).map((s: any) => s.phone).filter(Boolean);
+      }
     } else {
       let q = supabase.from('students').select('phone').eq('status', 'active').not('phone', 'is', null);
       if (recipientType === 'batch' && batchId) q = q.eq('batch_id', batchId);

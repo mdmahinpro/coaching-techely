@@ -523,7 +523,7 @@ function CreateExamTab({ batches, onDone }: { batches: any[]; onDone: () => void
         option_b: q.option_b,
         option_c: q.option_c,
         option_d: q.option_d,
-        correct_option: q.correct_option,
+        correct_option: q.correct_option.toLowerCase(),
         marks: q.marks,
         order_num: i + 1,
       })));
@@ -857,8 +857,8 @@ function ResultsTab({ exams }: { exams: Exam[] }) {
                 {questions.map((q, i) => {
                   const answers: Record<string, string> = (() => { try { return JSON.parse(breakdown.answers ?? '{}'); } catch { return {}; } })();
                   const studentAns = answers[q.id] ?? answers[String(i)] ?? null;
-                  const correct = q.correct_option;
-                  const isRight = studentAns === correct;
+                  const correct = q.correct_option?.toUpperCase();
+                  const isRight = (studentAns?.toUpperCase() ?? '') === correct;
                   return (
                     <div key={q.id} className={cn('card p-3 border', isRight ? 'border-emerald-400/20' : studentAns ? 'border-red-400/20' : 'border-white/5')}>
                       <p className="text-slate-400 text-xs mb-1">Q{i + 1}</p>
@@ -872,7 +872,7 @@ function ResultsTab({ exams }: { exams: Exam[] }) {
                         ) : (
                           <span className="text-slate-500">Unanswered</span>
                         )}
-                        {!isRight && <span className="text-emerald-400">Correct: <strong>{correct}</strong></span>}
+                        {!isRight && <span className="text-emerald-400">Correct: <strong>{correct ?? q.correct_option}</strong></span>}
                       </div>
                     </div>
                   );

@@ -211,7 +211,7 @@ function GenerateTab({ batches }: { batches: any[] }) {
       const { error } = await supabase.from('fees').insert(
         toCreate.map(s => ({
           student_id: s.id,
-          batch_id: s.batch_id || batchId !== 'all' ? batchId : null,
+          batch_id: s.batch_id ?? null,
           amount: feeAmount,
           month: monthStr,
           status: 'pending',

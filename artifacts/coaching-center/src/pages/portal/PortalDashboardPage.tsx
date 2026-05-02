@@ -24,7 +24,9 @@ export default function PortalDashboardPage() {
     const load = async () => {
       const [feesRes, examsRes, subsRes, noticesRes] = await Promise.all([
         supabase.from('fees').select('amount,status').eq('student_id', student.id),
-        supabase.from('exams').select('id,title,subject,status,batch_id').or(`batch_id.eq.${student.batch_id ?? 'null'},batch_id.is.null`),
+        student.batch_id
+          ? supabase.from('exams').select('id,title,subject,status,batch_id').or(`batch_id.eq.${student.batch_id},batch_id.is.null`)
+          : supabase.from('exams').select('id,title,subject,status,batch_id').is('batch_id', null),
         supabase.from('mcq_submissions').select('score,rank,exam:exams(title,total_marks,subject)').eq('student_id', student.id).order('submitted_at', { ascending: false }).limit(3),
         supabase.from('notices').select('*').eq('is_published', true).or(`target.eq.all${student.batch_id ? `,and(target.eq.batch,batch_id.eq.${student.batch_id})` : ''}`).order('is_pinned', { ascending: false }).order('created_at', { ascending: false }).limit(3),
       ]);
