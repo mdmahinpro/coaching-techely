@@ -1,0 +1,96 @@
+```
+Build /admin/students — complete student management.
+
+TOP BAR:
+- "ছাত্র ব্যবস্থাপনা" title
+- Search input (name / student ID / phone) — real-time with useDebounce
+- Filter: All | Active | Inactive | Suspended
+- Filter by batch (dropdown)
+- "CSV Export" btn-outline
+- "+ নতুন ছাত্র" btn-primary
+
+DATA TABLE (desktop) / CARD LIST (mobile < 768px):
+Desktop columns:
+Checkbox | Avatar | Student ID | Name | Class | Phone | Status | Actions
+
+Avatar: 36px circle, photo or initials (first letters, sky-400 bg)
+Student ID: monospace, text-sky-400
+Status badges: badge-green Active | badge-yellow Inactive | badge-red Suspended
+Actions: Eye | Edit | Trash
+
+Mobile cards: photo + name + ID + status + action buttons row
+
+Pagination: 20/page with page numbers
+
+STUDENT DETAIL DRAWER (slides from right, w-full md:w-[480px]):
+framer-motion: x from right, overlay bg
+
+Tabs: Profile | Fees | Exams | SMS Log
+
+Profile tab:
+- Large avatar (80px) — click to change photo
+- Student ID (monospace, copyable)
+- All fields displayed
+- Enrolled batches chips
+- Status with change button
+- "Suspend Student" btn-danger (with reason modal)
+  When suspended: fee_records stop generating for this student
+  Add note: "Suspended — no fees generated"
+- "Activate" btn-outline (if suspended/inactive)
+
+Fees tab:
+- Fee history table: month, batch, amount, discount, final, status badge, date
+- "Generate Fee" for specific month
+- Total paid | total due summary
+
+Exams tab:
+- All MCQ submissions: exam title, score, rank, date
+- Click → shows detailed answer breakdown
+
+SMS Log tab:
+- All SMS sent to this student
+- Date | message | status
+
+ADD/EDIT STUDENT MODAL (full screen mobile, large modal desktop):
+Fields:
+- Photo upload:
+  * Drag & drop or click
+  * MAX 300KB enforced (show error if larger: "ছবির সাইজ ৩০০KB এর বেশি হতে পারবে না")
+  * Preview before save
+  * Upload to Supabase Storage /student-photos/{id}
+  * Compress client-side if needed using canvas before upload
+- Full Name (required)
+- Guardian Name
+- Phone (required, 01XXXXXXXXX validation)
+- Email (optional)
+- Address
+- Class Level (select)
+- Assign Batch(es): multi-select pills
+- Status: Active / Inactive
+- Is Approved: toggle (approved students can login to portal + take exams)
+- Auto-generate portal password: parent phone last 6 digits (editable)
+
+Auto-generate Student ID:
+Format: CF + 2-digit year + 4-digit sequence
+Example: CF250001, CF250002
+Check max existing ID, increment by 1
+
+On save:
+1. Save to students table
+2. Create Supabase Auth user with phone as email (phone@coaching.local) + password
+3. Update students.auth_user_id
+4. Create batch_enrollment records
+5. Update batch enrolled_count
+6. Success toast
+
+SUSPEND STUDENT flow:
+- Click "Suspend Student" → modal with reason input
+- On confirm: update status = 'suspended'
+- All future fee generation skips suspended students
+- Student cannot login to portal while suspended
+- Suspended badge shown prominently
+
+CSV EXPORT:
+Downloads: student_id, name, guardian, phone, email, class, batch, status, join_date
+File: students_{YYYY-MM-DD}.csv
+```

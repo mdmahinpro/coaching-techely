@@ -102,7 +102,7 @@ export function HeroSection() {
             </div>
 
             {/* Stats row */}
-            <div ref={statsRef} className="grid grid-cols-4 gap-4">
+            <div ref={statsRef as React.Ref<HTMLDivElement>} className="grid grid-cols-4 gap-4">
               {stats.map((s, i) => (
                 <div key={s.label} className="text-center">
                   <div className={`font-inter font-black text-2xl sm:text-3xl ${s.color} mb-0.5`}>

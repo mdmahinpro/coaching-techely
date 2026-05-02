@@ -1,59 +1,108 @@
 import { useEffect, useState, useCallback } from 'react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
-import { DataTable, Column } from '@/components/admin/DataTable';
 import { StudentModal } from '@/components/admin/StudentModal';
+import { StudentDrawer } from '@/components/admin/StudentDrawer';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { Avatar } from '@/components/shared/Avatar';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
-import { Plus, Search, Pencil, Trash2, Download } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Download, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
-import { formatDate } from '@/lib/utils';
+import { formatDate, cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 interface Student {
   id: string;
+  student_id?: string;
   name: string;
-  email: string;
+  email?: string;
   phone: string;
-  batch_id?: string;
-  batch?: { name: string };
+  guardian_name?: string;
+  guardian_phone?: string;
+  address?: string;
+  class_level?: string;
   gender?: 'male' | 'female' | 'other';
+  status: 'active' | 'inactive' | 'suspended';
+  is_approved?: boolean;
+  photo_url?: string;
+  batch_id?: string;
+  batch?: { id: string; name: string };
   created_at: string;
 }
+
+type StatusFilter = 'all' | 'active' | 'inactive' | 'suspended';
+const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'inactive', label: 'Inactive' },
+  { id: 'suspended', label: 'Suspended' },
+];
+
+const PAGE_SIZE = 20;
+
+const statusBadge = (s: string) => {
+  if (s === 'active') return <span className="badge-green">Active</span>;
+  if (s === 'inactive') return <span className="badge-yellow">Inactive</span>;
+  return <span className="badge-red">Suspended</span>;
+};
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [batches, setBatches] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [batchFilter, setBatchFilter] = useState('all');
+  const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+  const [drawerStudent, setDrawerStudent] = useState<Student | null>(null);
   const q = useDebounce(search, 300);
 
   const load = useCallback(async () => {
     setLoading(true);
-    let query = supabase.from('students').select('*, batch:batches(name)').order('created_at', { ascending: false });
-    if (q) query = query.ilike('name', `%${q}%`);
-    const { data } = await query;
+    let query = supabase.from('students')
+      .select('*, batch:batches(id,name)', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+
+    if (q) query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%,student_id.ilike.%${q}%`);
+    if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+    if (batchFilter !== 'all') query = query.eq('batch_id', batchFilter);
+
+    const { data, count } = await query;
     setStudents(data ?? []);
+    setTotal(count ?? 0);
     setLoading(false);
-  }, [q]);
+  }, [q, statusFilter, batchFilter, page]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    supabase.from('batches').select('id,name').then(({ data }) => setBatches(data ?? []));
+    supabase.from('batches').select('id,name').eq('is_active', true)
+      .then(({ data }) => setBatches(data ?? []));
   }, []);
+
+  // Reset to page 1 on filter change
+  useEffect(() => { setPage(1); }, [q, statusFilter, batchFilter]);
 
   const handleSave = async (data: any) => {
     if (editing?.id) {
       const { error } = await supabase.from('students').update(data).eq('id', editing.id);
-      if (error) { toast.error('Failed to update'); return; }
+      if (error) { toast.error('Update failed'); return; }
       toast.success('Student updated');
     } else {
-      const { error } = await supabase.from('students').insert([data]);
-      if (error) { toast.error('Failed to add student'); return; }
-      toast.success('Student added');
+      const { error } = await supabase.from('students').insert([{ ...data, status: data.status ?? 'active' }]);
+      if (error) { toast.error('Failed to add student: ' + error.message); return; }
+      // Update batch enrolled count
+      if (data.batch_id) {
+        const batch = batches.find(b => b.id === data.batch_id);
+        if (batch) {
+          await supabase.rpc('increment_enrolled', { batch_uuid: data.batch_id });
+        }
+      }
+      toast.success(`Student added! ID: ${data.student_id}`);
     }
     setModalOpen(false);
     setEditing(null);
@@ -63,88 +112,307 @@ export default function StudentsPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const { error } = await supabase.from('students').delete().eq('id', deleteTarget.id);
-    if (error) { toast.error('Failed to delete'); return; }
+    if (error) { toast.error('Delete failed'); return; }
     toast.success('Student deleted');
     setDeleteTarget(null);
     load();
   };
 
-  const columns: Column<Student>[] = [
-    {
-      key: 'name', header: 'Student', sortable: true,
-      render: r => (
-        <div className="flex items-center gap-3">
-          <Avatar name={r.name} size="sm" />
-          <div>
-            <p className="font-medium text-white">{r.name}</p>
-            <p className="text-xs text-slate-500">{r.email}</p>
-          </div>
-        </div>
-      ),
-    },
-    { key: 'phone', header: 'Phone', sortable: true },
-    {
-      key: 'batch', header: 'Batch',
-      render: r => r.batch?.name ? <span className="badge-blue">{r.batch.name}</span> : <span className="text-slate-500">—</span>,
-    },
-    {
-      key: 'gender', header: 'Gender',
-      render: r => r.gender ? <span className="capitalize text-slate-300">{r.gender}</span> : <span className="text-slate-500">—</span>,
-    },
-    {
-      key: 'created_at', header: 'Joined', sortable: true,
-      render: r => <span className="text-slate-400 text-sm">{formatDate(r.created_at)}</span>,
-    },
-    {
-      key: 'actions', header: '',
-      render: r => (
-        <div className="flex items-center gap-2">
-          <button onClick={() => { setEditing(r); setModalOpen(true); }} className="p-1.5 rounded-lg hover:bg-sky-500/15 text-slate-400 hover:text-sky-400 transition-colors">
-            <Pencil size={14} />
-          </button>
-          <button onClick={() => setDeleteTarget(r)} className="p-1.5 rounded-lg hover:bg-red-500/15 text-slate-400 hover:text-red-400 transition-colors">
-            <Trash2 size={14} />
-          </button>
-        </div>
-      ),
-    },
-  ];
+  const csvExport = () => {
+    const headers = ['Student ID', 'Name', 'Guardian', 'Phone', 'Email', 'Class', 'Batch', 'Status', 'Joined'];
+    const rows = students.map(s => [
+      s.student_id ?? '', s.name, s.guardian_name ?? '', s.phone,
+      s.email ?? '', s.class_level ?? '', s.batch?.name ?? '',
+      s.status, formatDate(s.created_at),
+    ]);
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `students_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <AdminLayout title="Students">
+    <AdminLayout title="ছাত্র ব্যবস্থাপনা">
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 justify-between">
-          <div className="relative max-w-xs">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input value={search} onChange={e => setSearch(e.target.value)} className="input-field pl-9 py-2 text-sm" placeholder="Search students…" />
+        {/* Top bar */}
+        <div className="flex flex-col gap-3">
+          {/* Row 1: search + actions */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-between">
+            <div className="relative max-w-xs w-full">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="input-field pl-9 py-2 text-sm"
+                placeholder="Name, ID or phone…"
+              />
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button onClick={csvExport} className="btn-outline text-sm py-2">
+                <Download size={14} /> CSV Export
+              </button>
+              <button
+                onClick={() => { setEditing(null); setModalOpen(true); }}
+                className="btn-primary text-sm py-2"
+              >
+                <Plus size={15} /> নতুন ছাত্র
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button className="btn-outline text-sm py-2"><Download size={15} /> Export</button>
-            <button onClick={() => { setEditing(null); setModalOpen(true); }} className="btn-primary text-sm py-2">
-              <Plus size={15} /> Add Student
-            </button>
+
+          {/* Row 2: filters */}
+          <div className="flex flex-wrap gap-2 items-center">
+            {STATUS_FILTERS.map(f => (
+              <button
+                key={f.id}
+                onClick={() => setStatusFilter(f.id)}
+                className={`filter-pill ${statusFilter === f.id ? 'active' : ''}`}
+              >
+                {f.label}
+              </button>
+            ))}
+            <select
+              value={batchFilter}
+              onChange={e => setBatchFilter(e.target.value)}
+              className="input-field py-1.5 text-sm max-w-[180px]"
+            >
+              <option value="all">All Batches</option>
+              {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            {total > 0 && (
+              <span className="text-slate-500 text-xs ml-auto">{total} students</span>
+            )}
           </div>
         </div>
 
-        <div className="card overflow-hidden">
-          <DataTable columns={columns} data={students} loading={loading} emptyMessage="No students found. Add your first student!" />
+        {/* Desktop Table */}
+        <div className="card overflow-hidden hidden md:block">
+          {loading ? (
+            <div className="divide-y divide-navy-700/50">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3 animate-pulse">
+                  <div className="w-4 h-4 rounded bg-navy-700" />
+                  <div className="w-8 h-8 rounded-full bg-navy-700" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 bg-navy-700 rounded w-32" />
+                    <div className="h-2.5 bg-navy-700 rounded w-20" />
+                  </div>
+                  <div className="h-3 bg-navy-700 rounded w-24" />
+                  <div className="h-5 bg-navy-700 rounded-full w-16" />
+                </div>
+              ))}
+            </div>
+          ) : students.length === 0 ? (
+            <div className="py-16 text-center">
+              <p className="text-slate-500 text-sm">No students found.</p>
+              <button onClick={() => { setEditing(null); setModalOpen(true); }} className="btn-primary mt-4 text-sm">
+                <Plus size={14} /> Add First Student
+              </button>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-navy-700">
+                  <th className="text-left px-4 py-3 text-slate-400 font-medium w-8">
+                    <input type="checkbox" className="rounded accent-sky-400" />
+                  </th>
+                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Student</th>
+                  <th className="text-left px-4 py-3 text-slate-400 font-medium">ID</th>
+                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Class</th>
+                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Phone</th>
+                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Batch</th>
+                  <th className="text-left px-4 py-3 text-slate-400 font-medium">Status</th>
+                  <th className="text-left px-4 py-3 text-slate-400 font-medium w-28">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((s, i) => (
+                  <motion.tr
+                    key={s.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="border-b border-navy-700/40 hover:bg-white/[0.02] transition-colors group"
+                  >
+                    <td className="px-4 py-3">
+                      <input type="checkbox" className="rounded accent-sky-400" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={s.name} size="sm" src={s.photo_url} />
+                        <div>
+                          <p className="font-medium text-white text-sm">{s.name}</p>
+                          <p className="text-slate-500 text-xs truncate max-w-[140px]">{s.email || s.guardian_name || '—'}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-sky-400 text-xs">{s.student_id || '—'}</span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-300 text-sm">{s.class_level || '—'}</td>
+                    <td className="px-4 py-3 text-slate-300 text-sm">{s.phone}</td>
+                    <td className="px-4 py-3">
+                      {s.batch?.name ? <span className="badge-blue text-xs">{s.batch.name}</span> : <span className="text-slate-600">—</span>}
+                    </td>
+                    <td className="px-4 py-3">{statusBadge(s.status)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => setDrawerStudent(s)}
+                          className="p-1.5 rounded-lg hover:bg-sky-500/15 text-slate-400 hover:text-sky-400 transition-colors"
+                          title="View"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => { setEditing(s); setModalOpen(true); }}
+                          className="p-1.5 rounded-lg hover:bg-violet-500/15 text-slate-400 hover:text-violet-400 transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(s)}
+                          className="p-1.5 rounded-lg hover:bg-red-500/15 text-slate-400 hover:text-red-400 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
+
+        {/* Mobile Card List */}
+        <div className="md:hidden space-y-3">
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="card p-4 animate-pulse flex gap-3">
+                <div className="w-10 h-10 rounded-full bg-navy-700 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-navy-700 rounded w-3/4" />
+                  <div className="h-2.5 bg-navy-700 rounded w-1/2" />
+                </div>
+              </div>
+            ))
+          ) : students.length === 0 ? (
+            <div className="card p-8 text-center">
+              <p className="text-slate-500 text-sm">No students found.</p>
+            </div>
+          ) : (
+            students.map((s, i) => (
+              <motion.div
+                key={s.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                className="card p-4"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <Avatar name={s.name} size="md" src={s.photo_url} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="font-semibold text-white truncate">{s.name}</p>
+                      {statusBadge(s.status)}
+                    </div>
+                    {s.student_id && <p className="font-mono text-sky-400 text-xs">{s.student_id}</p>}
+                    <p className="text-slate-500 text-xs">{s.phone} · {s.class_level || '—'}</p>
+                    {s.batch?.name && <span className="badge-blue text-xs mt-1 inline-block">{s.batch.name}</span>}
+                  </div>
+                </div>
+                <div className="flex gap-2 border-t border-white/5 pt-3">
+                  <button onClick={() => setDrawerStudent(s)} className="btn-outline flex-1 justify-center text-xs py-1.5">
+                    <Eye size={13} /> View
+                  </button>
+                  <button onClick={() => { setEditing(s); setModalOpen(true); }} className="btn-outline flex-1 justify-center text-xs py-1.5">
+                    <Pencil size={13} /> Edit
+                  </button>
+                  <button onClick={() => setDeleteTarget(s)} className="btn-danger flex-none py-1.5 px-3 text-xs">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </motion.div>
+            ))
+          )}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-slate-500 text-sm">
+              Page {page} of {totalPages} · {total} total
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-navy-700 text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const p = Math.max(1, Math.min(page - 2, totalPages - 4)) + i;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={cn(
+                      'w-8 h-8 flex items-center justify-center rounded-lg text-sm transition-colors',
+                      page === p
+                        ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                    )}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-navy-700 text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Student Detail Drawer */}
+      <StudentDrawer
+        student={drawerStudent}
+        onClose={() => setDrawerStudent(null)}
+        onStatusChange={() => { load(); setDrawerStudent(null); }}
+      />
+
+      {/* Add/Edit Modal */}
       <StudentModal
         open={modalOpen}
-        student={editing ?? undefined}
+        student={editing ? { ...editing, status: editing.status === 'suspended' ? 'inactive' : editing.status } : undefined}
         batches={batches}
         onSave={handleSave}
         onClose={() => { setModalOpen(false); setEditing(null); }}
       />
+
+      {/* Delete Confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Student"
-        message={`Are you sure you want to delete ${deleteTarget?.name}? This cannot be undone.`}
+        message={`Delete ${deleteTarget?.name}? This cannot be undone and will remove all their records.`}
         confirmLabel="Delete"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+        danger
       />
     </AdminLayout>
   );

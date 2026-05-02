@@ -101,7 +101,8 @@ artifacts/coaching-center/src/
     portal/                 # All 5 portal pages
   components/
     public/                 # PublicNavbar, Footer, HeroSection, BatchCard
-    admin/                  # AdminLayout, AdminSidebar, AdminHeader, StatsCard, DataTable, StudentModal
+    admin/                  # AdminLayout, AdminSidebar, AdminHeader, StatsCard, DataTable,
+                            # StudentModal (rebuilt), StudentDrawer (new), SuspendModal (new)
     portal/                 # PortalLayout, PortalNav
     shared/                 # AnimatedSection, LoadingSkeleton, EmptyState, Avatar, ConfirmDialog
     ProtectedRoute.tsx
