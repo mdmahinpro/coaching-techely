@@ -61,8 +61,10 @@ function OverviewTab() {
       setPayments(displayData ?? []);
       const all = statsData ?? [];
       const parseNote = (n: string | null) => { try { return JSON.parse(n || '{}'); } catch { return {}; } };
+      const nowLocal = new Date();
+      const thisMonth = `${MONTHS[nowLocal.getMonth()]} ${nowLocal.getFullYear()}`;
       setFeeStats({
-        due: all.filter(p => p.month === THIS_MONTH).reduce((s, p) => s + (p.amount ?? 0), 0),
+        due: all.filter(p => p.month === thisMonth).reduce((s, p) => s + (p.amount ?? 0), 0),
         collected: all.filter(p => p.status === 'paid').reduce((s, p) => {
           const meta = parseNote(p.note);
           return s + (meta.final_amount ?? p.amount ?? 0);
@@ -644,13 +646,16 @@ function DueReportTab({ batches }: { batches: any[] }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const nowLoad = new Date();
+    const thisMonthLoad = `${MONTHS[nowLoad.getMonth()]} ${nowLoad.getFullYear()}`;
+    const lastMonthLoad = `${MONTHS[nowLoad.getMonth() === 0 ? 11 : nowLoad.getMonth() - 1]} ${nowLoad.getMonth() === 0 ? nowLoad.getFullYear() - 1 : nowLoad.getFullYear()}`;
     let q = supabase.from('fees')
       .select('*, student:students(id, name, student_id, phone, photo_url), batch:batches(name)')
       .neq('status', 'paid')
-      .order('month', { ascending: true });
+      .order('due_date', { ascending: true });
 
-    if (filter === 'this_month') q = q.eq('month', THIS_MONTH);
-    else if (filter === 'last_month') q = q.eq('month', LAST_MONTH);
+    if (filter === 'this_month') q = q.eq('month', thisMonthLoad);
+    else if (filter === 'last_month') q = q.eq('month', lastMonthLoad);
     else if (filter === 'overdue_2') {
       // months older than 2 months
       const cutoff = new Date();

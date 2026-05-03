@@ -35,7 +35,7 @@ export default function PortalProfilePage() {
         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
         canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.75);
       };
-      img.onerror = () => { URL.revokeObjectURL(objectUrl); };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
       img.src = objectUrl;
     });
   };
@@ -54,10 +54,11 @@ export default function PortalProfilePage() {
     const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
     if (upErr) { toast.error('আপলোড ব্যর্থ হয়েছে'); setUploading(false); return; }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+    const cacheBustedUrl = `${data.publicUrl}?t=${Date.now()}`;
     const { error: dbErr } = await supabase.from('students').update({ photo_url: data.publicUrl }).eq('id', student.id);
     if (dbErr) { toast.error('আপডেট ব্যর্থ হয়েছে'); setUploading(false); return; }
-    setPhotoPreview(data.publicUrl);
-    setStudent({ ...student, photo_url: data.publicUrl });
+    setPhotoPreview(cacheBustedUrl);
+    setStudent({ ...student, photo_url: cacheBustedUrl });
     toast.success('ছবি আপডেট হয়েছে');
     setUploading(false);
   };

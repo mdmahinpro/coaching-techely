@@ -77,7 +77,7 @@ export default function TeachersPage() {
         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
         canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.75);
       };
-      img.onerror = () => { URL.revokeObjectURL(objectUrl); };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
       img.src = objectUrl;
     });
 
@@ -93,7 +93,7 @@ export default function TeachersPage() {
     if (!photoFile) return editing.photo_url ?? null;
     setUploading(true);
     const blob = await compressImage(photoFile);
-    const path = `teachers/${Date.now()}.jpg`;
+    const path = `teachers/${editing.id ?? Date.now()}.jpg`;
     const { error } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
     setUploading(false);
     if (error) { toast.error('Photo upload failed'); return null; }
