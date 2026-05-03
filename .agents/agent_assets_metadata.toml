@@ -12,3 +12,9 @@ id = "mf6jDINO2CI9drKf7A7r3"
 uri = "file://coaching-center-source.tar.gz"
 type = "unspecified"
 title = "Coaching Center — Full Source Code"
+
+[[outputs]]
+id = "AOPreePo-dDFSXvs9TuFj"
+uri = "file://coaching-center-src.zip"
+type = "unspecified"
+title = "coaching-center-src.zip"
