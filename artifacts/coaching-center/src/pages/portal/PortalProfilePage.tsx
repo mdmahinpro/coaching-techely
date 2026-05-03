@@ -22,7 +22,9 @@ export default function PortalProfilePage() {
     return new Promise(resolve => {
       const canvas = document.createElement('canvas');
       const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
       img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
         const MAX = 600;
         let { width, height } = img;
         if (width > MAX || height > MAX) {
@@ -33,7 +35,8 @@ export default function PortalProfilePage() {
         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
         canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.85);
       };
-      img.src = URL.createObjectURL(file);
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); };
+      img.src = objectUrl;
     });
   };
 

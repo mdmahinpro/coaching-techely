@@ -22,12 +22,13 @@ export default function PortalDashboardPage() {
   useEffect(() => {
     if (!student) return;
     const load = async () => {
-      const [feesRes, examsRes, subsRes, noticesRes] = await Promise.all([
+      const [feesRes, examsRes, subsRes, allScoresRes, noticesRes] = await Promise.all([
         supabase.from('fees').select('amount,status').eq('student_id', student.id),
         student.batch_id
           ? supabase.from('exams').select('id,title,subject,status,batch_id').or(`batch_id.eq.${student.batch_id},batch_id.is.null`)
           : supabase.from('exams').select('id,title,subject,status,batch_id').is('batch_id', null),
         supabase.from('mcq_submissions').select('score,rank,exam:exams(title,total_marks,subject)').eq('student_id', student.id).order('submitted_at', { ascending: false }).limit(3),
+        supabase.from('mcq_submissions').select('score,exam:exams(total_marks)').eq('student_id', student.id),
         supabase.from('notices').select('*').eq('is_published', true).or(`target.eq.all${student.batch_id ? `,and(target.eq.batch,batch_id.eq.${student.batch_id})` : ''}`).order('is_pinned', { ascending: false }).order('created_at', { ascending: false }).limit(3),
       ]);
 
@@ -39,10 +40,12 @@ export default function PortalDashboardPage() {
       setExamCount(exams.length);
       setActiveExams(exams.filter(e => e.status === 'active'));
 
-      const subs = subsRes.data ?? [];
-      setRecentResults(subs);
-      if (subs.length > 0) {
-        const best = Math.max(...subs.map(s => {
+      const recentSubs = subsRes.data ?? [];
+      setRecentResults(recentSubs);
+
+      const allScores = allScoresRes.data ?? [];
+      if (allScores.length > 0) {
+        const best = Math.max(...allScores.map(s => {
           const total = (s as any).exam?.total_marks ?? 100;
           return Math.round((s.score / total) * 100);
         }));
@@ -51,7 +54,8 @@ export default function PortalDashboardPage() {
 
       const noticeList = noticesRes.data ?? [];
       setNotices(noticeList);
-      setUnreadNotices(noticeList.filter(n => !readNotices.includes(n.id)).length);
+      const freshRead: string[] = JSON.parse(localStorage.getItem('portal-read-notices') ?? '[]');
+      setUnreadNotices(noticeList.filter(n => !freshRead.includes(n.id)).length);
     };
     load();
   }, [student]);

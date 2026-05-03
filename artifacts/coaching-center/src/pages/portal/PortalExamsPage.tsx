@@ -108,7 +108,11 @@ export default function PortalExamsPage() {
     if (!student) return;
     const load = async () => {
       let q = supabase.from('exams').select('*').order('exam_date', { ascending: false });
-      if (student.batch_id) q = q.or(`batch_id.eq.${student.batch_id},batch_id.is.null`);
+      if (student.batch_id) {
+        q = q.or(`batch_id.eq.${student.batch_id},batch_id.is.null`);
+      } else {
+        q = q.is('batch_id', null);
+      }
       const { data: examData } = await q;
       setExams((examData ?? []) as Exam[]);
 

@@ -44,19 +44,28 @@ export default function TeachersPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const revokeBlobPreview = (url: string | null) => {
+    if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
+  };
+
   const openModal = (t?: Teacher) => {
     setEditing(t ? { ...t } : EMPTY);
     setPhotoFile(null);
-    setPhotoPreview(t?.photo_url ?? null);
+    setPhotoPreview(prev => { revokeBlobPreview(prev); return t?.photo_url ?? null; });
     setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setPhotoPreview(prev => { revokeBlobPreview(prev); return null; });
+    setModalOpen(false);
   };
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 300 * 1024) { toast.error('Photo must be under 300 KB'); return; }
+    setPhotoPreview(prev => { revokeBlobPreview(prev); return URL.createObjectURL(file); });
     setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
   };
 
   const uploadPhoto = async (): Promise<string | null> => {
@@ -96,7 +105,7 @@ export default function TeachersPage() {
     }
     if (error) { toast.error(error.message); setSaving(false); return; }
     setSaving(false);
-    setModalOpen(false);
+    closeModal();
     load();
   };
 
@@ -170,11 +179,11 @@ export default function TeachersPage() {
       <AnimatePresence>
         {modalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalOpen(false)} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeModal} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative card-glass w-full max-w-lg z-10 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-5 border-b border-white/5">
                 <h2 className="font-inter font-bold text-white">{editing.id ? 'Edit Teacher' : 'Add Teacher'}</h2>
-                <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-white"><X size={18} /></button>
+                <button onClick={closeModal} className="text-slate-400 hover:text-white"><X size={18} /></button>
               </div>
               <div className="p-5 space-y-4">
                 {/* Photo upload */}
@@ -233,7 +242,7 @@ export default function TeachersPage() {
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <button onClick={() => setModalOpen(false)} className="btn-outline flex-1 justify-center text-sm">Cancel</button>
+                  <button onClick={closeModal} className="btn-outline flex-1 justify-center text-sm">Cancel</button>
                   <button onClick={handleSave} disabled={saving || uploading} className="btn-primary flex-1 justify-center text-sm">
                     {saving || uploading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                     {editing.id ? 'Update' : 'Add Teacher'}
