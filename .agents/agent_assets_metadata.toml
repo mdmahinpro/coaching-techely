@@ -18,3 +18,9 @@ id = "AOPreePo-dDFSXvs9TuFj"
 uri = "file://coaching-center-src.zip"
 type = "unspecified"
 title = "coaching-center-src.zip"
+
+[[outputs]]
+id = "go0u2BW_9sKm1_f1tw108"
+uri = "file://artifacts/coaching-center/coaching-center-source.tar.gz"
+type = "unspecified"
+title = "Coaching Center Source Code (tar.gz)"

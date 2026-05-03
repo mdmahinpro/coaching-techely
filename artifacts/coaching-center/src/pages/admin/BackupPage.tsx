@@ -1,10 +1,10 @@
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { supabase } from '@/lib/supabase';
 import toast from 'react-hot-toast';
-import { Download, Database, AlertTriangle, Upload, Info, CheckCircle2, Clock, Loader2, RefreshCw } from 'lucide-react';
+import { Download, Database, AlertTriangle, Upload, Info, CheckCircle2, Clock, Loader2, Trash2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { formatDate, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 const BACKUP_KEY = 'coaching-backup-history';
 const TABLES = [
@@ -21,8 +21,78 @@ const TABLES = [
   { key: 'site_settings', label: 'Site Settings' },
 ] as const;
 
-type StepState = 'pending' | 'running' | 'done' | 'skip';
+// Each group defines what tables it will DELETE (in safe FK order)
+const RESET_GROUPS = [
+  {
+    id: 'admissions',
+    label: 'ভর্তি আবেদন',
+    labelEn: 'Admission Requests',
+    icon: '📋',
+    description: 'সব ভর্তি আবেদন মুছবে',
+    tables: ['admission_requests'],
+  },
+  {
+    id: 'sms',
+    label: 'SMS লগ',
+    labelEn: 'SMS Logs',
+    icon: '📱',
+    description: 'সব SMS ইতিহাস মুছবে',
+    tables: ['sms_logs'],
+  },
+  {
+    id: 'notices',
+    label: 'নোটিশ',
+    labelEn: 'Notices',
+    icon: '📢',
+    description: 'সব নোটিশ মুছবে',
+    tables: ['notices'],
+  },
+  {
+    id: 'exams',
+    label: 'পরীক্ষা ও প্রশ্নপত্র',
+    labelEn: 'Exams + Questions + Submissions',
+    icon: '📝',
+    description: 'সব পরীক্ষা, প্রশ্ন ও সাবমিশন মুছবে',
+    tables: ['mcq_submissions', 'mcq_questions', 'exams'],
+  },
+  {
+    id: 'fees',
+    label: 'ফি রেকর্ড',
+    labelEn: 'Fee Records',
+    icon: '💰',
+    description: 'সব ফি পেমেন্ট রেকর্ড মুছবে',
+    tables: ['fees'],
+  },
+  {
+    id: 'students',
+    label: 'শিক্ষার্থী',
+    labelEn: 'Students',
+    icon: '👨‍🎓',
+    description: 'সব শিক্ষার্থী মুছবে (ফি মুছতে হবে আগে)',
+    tables: ['students'],
+    requiresFirst: ['fees'],
+  },
+  {
+    id: 'teachers',
+    label: 'শিক্ষক',
+    labelEn: 'Teachers',
+    icon: '👨‍🏫',
+    description: 'সব শিক্ষক মুছবে',
+    tables: ['teachers'],
+  },
+  {
+    id: 'batches',
+    label: 'ব্যাচ',
+    labelEn: 'Batches',
+    icon: '🗂️',
+    description: 'সব ব্যাচ মুছবে (শিক্ষার্থী মুছতে হবে আগে)',
+    tables: ['batches'],
+    requiresFirst: ['students', 'fees', 'exams'],
+  },
+] as const;
 
+type GroupId = typeof RESET_GROUPS[number]['id'];
+type StepState = 'pending' | 'running' | 'done' | 'skip';
 interface Step { label: string; state: StepState }
 
 const fmtFileName = (institute: string) => {
@@ -43,6 +113,12 @@ export default function BackupPage() {
   const [restoring, setRestoring] = useState(false);
   const [confirmStep, setConfirmStep] = useState<0 | 1 | 2>(0);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Reset panel state
+  const [selected, setSelected] = useState<Set<GroupId>>(new Set());
+  const [resetConfirm, setResetConfirm] = useState<0 | 1 | 2>(0);
+  const [resetting, setResetting] = useState(false);
+  const [resetLog, setResetLog] = useState<string[]>([]);
 
   useEffect(() => {
     const stored = localStorage.getItem(BACKUP_KEY);
@@ -71,10 +147,10 @@ export default function BackupPage() {
 
     for (let i = 0; i < TABLES.length; i++) {
       setStep(i, 'running');
-      await new Promise(r => setTimeout(r, 80)); // visual delay
+      await new Promise(r => setTimeout(r, 80));
       const { data, error } = await supabase.from(TABLES[i].key).select('*');
       if (error) {
-        setStep(i, 'skip'); // table might not exist yet
+        setStep(i, 'skip');
       } else {
         backup[TABLES[i].key] = data ?? [];
         totalRecords += (data ?? []).length;
@@ -82,7 +158,6 @@ export default function BackupPage() {
       }
     }
 
-    // Finalize
     const lastIdx = TABLES.length;
     setStep(lastIdx, 'running');
     await new Promise(r => setTimeout(r, 100));
@@ -136,7 +211,6 @@ export default function BackupPage() {
     if (!restoreData?.tables) return;
     setRestoring(true);
     let totalRestored = 0;
-    // Process in FK-safe order: parents before children
     const RESTORE_ORDER = [
       'site_settings', 'batches', 'teachers', 'students',
       'fees', 'notices', 'exams', 'mcq_questions',
@@ -150,7 +224,6 @@ export default function BackupPage() {
       if (!error) totalRestored += rows.length;
       processed.add(tableName);
     }
-    // Handle any extra tables not in the known order
     for (const [table, rows] of Object.entries(restoreData.tables)) {
       if (processed.has(table)) continue;
       if (!Array.isArray(rows) || rows.length === 0) continue;
@@ -163,6 +236,62 @@ export default function BackupPage() {
     setRestoreFile(null);
     setRestoreSummary(null);
     setRestoreData(null);
+  };
+
+  const toggleGroup = (id: GroupId) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    setResetConfirm(0);
+    setResetLog([]);
+  };
+
+  const handleReset = async () => {
+    if (selected.size === 0) return;
+    setResetting(true);
+    setResetLog([]);
+
+    // Collect all tables to delete in safe FK order
+    // Fixed deletion order regardless of group selection
+    const SAFE_ORDER: string[] = [
+      'sms_logs',
+      'admission_requests',
+      'notices',
+      'mcq_submissions',
+      'mcq_questions',
+      'exams',
+      'fees',
+      'students',
+      'teachers',
+      'batches',
+    ];
+
+    const tablesToDelete = new Set<string>();
+    for (const group of RESET_GROUPS) {
+      if (selected.has(group.id)) {
+        group.tables.forEach(t => tablesToDelete.add(t));
+      }
+    }
+
+    const log: string[] = [];
+    for (const table of SAFE_ORDER) {
+      if (!tablesToDelete.has(table)) continue;
+      const { error, count } = await supabase.from(table as any).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) {
+        log.push(`❌ ${table}: ${error.message}`);
+      } else {
+        log.push(`✅ ${table} মুছে ফেলা হয়েছে`);
+      }
+      setResetLog([...log]);
+      await new Promise(r => setTimeout(r, 120));
+    }
+
+    setResetting(false);
+    setResetConfirm(0);
+    setSelected(new Set());
+    toast.success('✅ নির্বাচিত ডেটা মুছে ফেলা হয়েছে');
   };
 
   const stepIcon = (state: StepState) => {
@@ -187,7 +316,6 @@ export default function BackupPage() {
             {backing ? <><Loader2 size={16} className="animate-spin" /> ব্যাকআপ চলছে…</> : <><Download size={16} /> সম্পূর্ণ ডেটা ব্যাকআপ করুন</>}
           </button>
 
-          {/* Progress steps */}
           <AnimatePresence>
             {steps.length > 0 && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-6 text-left space-y-1.5 overflow-hidden">
@@ -232,7 +360,6 @@ export default function BackupPage() {
           </button>
           <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={handleFileSelect} />
 
-          {/* Summary */}
           <AnimatePresence>
             {restoreSummary && (
               <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="card p-4 space-y-2">
@@ -247,7 +374,6 @@ export default function BackupPage() {
                 </div>
                 <p className="text-slate-500 text-xs pt-1">Backup date: {restoreData?.backup_date ? new Date(restoreData.backup_date).toLocaleString() : '—'}</p>
 
-                {/* Double confirmation */}
                 {confirmStep === 0 && (
                   <button onClick={() => setConfirmStep(1)} className="btn-danger w-full justify-center text-sm mt-2">
                     Restore Data
@@ -278,7 +404,124 @@ export default function BackupPage() {
           </AnimatePresence>
         </div>
 
-        {/* ── Future-proof note ── */}
+        {/* ── DEMO DATA RESET / SETUP WIZARD ── */}
+        <div className="card p-6 space-y-5 border border-red-500/20">
+          {/* Header */}
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/20 flex items-center justify-center shrink-0">
+              <Trash2 size={18} className="text-red-400" />
+            </div>
+            <div>
+              <h3 className="font-inter font-bold text-white">ডেমো ডেটা মুছুন</h3>
+              <p className="text-slate-400 text-sm mt-0.5 font-hind">
+                প্রথমবার সেটআপের সময় ডেমো ডেটা মুছে নিজের আসল ডেটা দিয়ে শুরু করুন।
+                চার্ট ও রিপোর্ট সঠিক তথ্য দেখাবে।
+              </p>
+            </div>
+          </div>
+
+          {/* Warning banner */}
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+            <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-amber-300 text-xs font-hind leading-relaxed">
+              <strong>সতর্কতা:</strong> এই কাজ পূর্বাবস্থায় ফেরানো যাবে না। মুছার আগে উপরের ব্যাকআপ বাটন দিয়ে ডেটা সেভ করুন।
+            </p>
+          </div>
+
+          {/* Category checkboxes */}
+          <div>
+            <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-3">কোন ডেটা মুছবেন?</p>
+            <div className="grid grid-cols-1 gap-2">
+              {RESET_GROUPS.map(group => (
+                <label key={group.id}
+                  className={cn(
+                    'flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all',
+                    selected.has(group.id)
+                      ? 'border-red-400/40 bg-red-500/10'
+                      : 'border-white/8 bg-navy-800/30 hover:border-white/15'
+                  )}>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(group.id)}
+                    onChange={() => toggleGroup(group.id)}
+                    className="w-4 h-4 accent-red-400 shrink-0"
+                  />
+                  <span className="text-lg shrink-0">{group.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className={cn('text-sm font-medium', selected.has(group.id) ? 'text-red-300' : 'text-white')}>
+                      {group.label}
+                    </p>
+                    <p className="text-xs text-slate-500 font-hind">{group.description}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {/* Select all / none */}
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => { setSelected(new Set(RESET_GROUPS.map(g => g.id))); setResetConfirm(0); setResetLog([]); }}
+                className="text-xs text-slate-400 hover:text-white transition-colors underline underline-offset-2">
+                সব নির্বাচন করুন
+              </button>
+              <span className="text-slate-600">·</span>
+              <button
+                onClick={() => { setSelected(new Set()); setResetConfirm(0); setResetLog([]); }}
+                className="text-xs text-slate-400 hover:text-white transition-colors underline underline-offset-2">
+                সব বাতিল করুন
+              </button>
+              {selected.size > 0 && (
+                <span className="text-xs text-red-400 ml-auto">{selected.size}টি বিভাগ নির্বাচিত</span>
+              )}
+            </div>
+          </div>
+
+          {/* Action button + confirmation */}
+          <AnimatePresence mode="wait">
+            {selected.size === 0 ? null : resetConfirm === 0 ? (
+              <motion.button
+                key="step0"
+                initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                onClick={() => setResetConfirm(1)}
+                className="btn-danger w-full justify-center py-3 text-sm">
+                <Trash2 size={14} /> নির্বাচিত ডেটা মুছুন
+              </motion.button>
+            ) : resetConfirm === 1 ? (
+              <motion.div key="step1" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="card p-4 border border-amber-400/25 space-y-3">
+                <p className="text-amber-300 text-sm font-semibold font-hind">
+                  ⚠ নিশ্চিত? এই {selected.size}টি বিভাগের সব ডেটা স্থায়ীভাবে মুছে যাবে।
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => setResetConfirm(0)} className="btn-outline text-sm flex-1 justify-center py-2">বাতিল</button>
+                  <button onClick={() => setResetConfirm(2)} className="btn-danger text-sm flex-1 justify-center py-2">হ্যাঁ, মুছুন</button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div key="step2" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="card p-4 border border-red-400/30 space-y-3">
+                <p className="text-red-400 text-sm font-semibold font-hind">
+                  🔴 চূড়ান্ত নিশ্চিতকরণ — এই কাজ পূর্বাবস্থায় ফেরানো যাবে না
+                </p>
+                {resetLog.length > 0 && (
+                  <div className="space-y-1 text-xs font-mono bg-navy-900/60 p-3 rounded-lg max-h-32 overflow-y-auto">
+                    {resetLog.map((line, i) => (
+                      <p key={i} className={line.startsWith('✅') ? 'text-emerald-400' : 'text-red-400'}>{line}</p>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => setResetConfirm(0)} disabled={resetting} className="btn-outline text-sm flex-1 justify-center py-2">বাতিল</button>
+                  <button onClick={handleReset} disabled={resetting} className="btn-danger text-sm flex-1 justify-center py-2">
+                    {resetting ? <><Loader2 size={13} className="animate-spin" /> মুছছে…</> : '🗑 চূড়ান্তভাবে মুছুন'}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── Info note ── */}
         <div className="card-glass p-4 border border-sky-400/10 flex items-start gap-3">
           <Info size={16} className="text-sky-400 shrink-0 mt-0.5" />
           <p className="text-slate-400 text-sm leading-relaxed font-hind">
