@@ -17,7 +17,7 @@ const schema = z.object({
   class_level: z.string().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
   batch_id: z.string().optional(),
-  status: z.enum(['active', 'inactive']).default('active'),
+  status: z.enum(['active', 'inactive', 'suspended']).default('active'),
   is_approved: z.boolean().default(true),
   password: z.string().optional(),
 });
@@ -117,7 +117,7 @@ export function StudentModal({ open, student, batches = [], onSave, onClose }: P
         class_level: student?.class_level ?? '',
         gender: student?.gender,
         batch_id: student?.batch_id ?? '',
-        status: (student?.status as 'active' | 'inactive') ?? 'active',
+        status: (student?.status as 'active' | 'inactive' | 'suspended') ?? 'active',
         is_approved: student?.is_approved ?? true,
         password: '',
       });
@@ -302,6 +302,7 @@ export function StudentModal({ open, student, batches = [], onSave, onClose }: P
                   <select {...register('status')} className="input-field">
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
+                    <option value="suspended">Suspended</option>
                   </select>
                 </Field>
                 <div>
