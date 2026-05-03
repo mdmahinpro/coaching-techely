@@ -33,7 +33,7 @@ export default function PortalDashboardPage() {
       ]);
 
       const fees = feesRes.data ?? [];
-      const pending = fees.filter(f => f.status !== 'paid').reduce((s, f) => s + (f.amount ?? 0), 0);
+      const pending = fees.filter(f => f.status === 'pending' || f.status === 'overdue').reduce((s, f) => s + (f.amount ?? 0), 0);
       setFeeStatus({ pending, total: fees.length });
 
       const exams = examsRes.data ?? [];
