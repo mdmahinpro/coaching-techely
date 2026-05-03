@@ -53,3 +53,8 @@ Thumbs.db
 .env.*
 !.env.example
 *.local
+
+# Generated archives and source bundles
+*.tar.gz
+*.zip
+*.tgz
