@@ -73,15 +73,20 @@ export default function DashboardPage() {
     setStats({ activeStudents: studentRes.count ?? 0, monthCollected, pendingFees, activeExams: activeExamRes.count ?? 0 });
 
     const students = studentRes.data ?? [];
-    const monthCounts: Record<number, number> = {};
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const monthCounts: Record<string, number> = {};
     students.forEach((s: any) => {
-      const m = new Date(s.created_at).getMonth();
-      monthCounts[m] = (monthCounts[m] ?? 0) + 1;
+      const d = new Date(s.created_at);
+      if (d >= sixMonthsAgo) {
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        monthCounts[key] = (monthCounts[key] ?? 0) + 1;
+      }
     });
     const trend = [];
     for (let i = 5; i >= 0; i--) {
-      const m = (now.getMonth() - i + 12) % 12;
-      trend.push({ month: MONTHS[m], students: monthCounts[m] ?? 0 });
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      trend.push({ month: MONTHS[d.getMonth()], students: monthCounts[key] ?? 0 });
     }
     setEnrollmentData(trend);
 

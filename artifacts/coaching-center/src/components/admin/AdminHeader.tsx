@@ -59,6 +59,11 @@ export function AdminHeader({ title, onMenuToggle }: Props) {
     setSearchResults([]);
   };
 
+  // Clear pending debounce on unmount to prevent setState on unmounted component
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
+
   // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {

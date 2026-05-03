@@ -28,8 +28,8 @@ export default function ContactPage() {
     reset();
   };
 
-  const waLink = settings.centerPhone
-    ? `https://wa.me/88${settings.centerPhone.replace(/[^0-9]/g, '')}`
+  const waLink = settings.centerWhatsapp
+    ? `https://wa.me/${settings.centerWhatsapp.replace(/[^0-9]/g, '')}`
     : 'https://wa.me/';
 
   return (

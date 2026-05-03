@@ -63,13 +63,18 @@ async function compressImage(file: File): Promise<Blob> {
 
 async function generateStudentId(): Promise<string> {
   const year = new Date().getFullYear().toString().slice(2);
-  const { data } = await supabase.from('students').select('student_id')
-    .like('student_id', `CF${year}%`)
-    .order('student_id', { ascending: false })
-    .limit(1);
-  const last = data?.[0]?.student_id;
-  const lastSeq = last ? parseInt(last.slice(4)) : 0;
-  return `CF${year}${String(lastSeq + 1).padStart(4, '0')}`;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const { data } = await supabase.from('students').select('student_id')
+      .like('student_id', `CF${year}%`)
+      .order('student_id', { ascending: false })
+      .limit(1);
+    const last = data?.[0]?.student_id;
+    const lastSeq = last ? parseInt(last.slice(4)) : 0;
+    const candidate = `CF${year}${String(lastSeq + 1).padStart(4, '0')}`;
+    const { data: existing } = await supabase.from('students').select('id').eq('student_id', candidate).maybeSingle();
+    if (!existing) return candidate;
+  }
+  return `CF${year}${Date.now().toString().slice(-4)}`;
 }
 
 function Field({ label, error, children, required }: { label: string; error?: string; children: React.ReactNode; required?: boolean }) {

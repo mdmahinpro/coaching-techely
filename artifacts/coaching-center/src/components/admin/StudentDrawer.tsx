@@ -128,7 +128,9 @@ export function StudentDrawer({ student, onClose, onStatusChange }: Props) {
     onStatusChange();
   };
 
-  const totalPaid = fees.filter(f => f.status === 'paid').reduce((s, f) => s + (f.amount ?? 0), 0);
+  const totalPaid = fees.filter(f => f.status === 'paid').reduce((s, f) => {
+    try { const note = JSON.parse(f.note ?? '{}'); return s + (note.final_amount ?? f.amount ?? 0); } catch { return s + (f.amount ?? 0); }
+  }, 0);
   const totalDue = fees.filter(f => f.status === 'pending').reduce((s, f) => s + (f.amount ?? 0), 0);
 
   return (
