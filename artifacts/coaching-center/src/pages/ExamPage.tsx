@@ -89,6 +89,8 @@ export default function ExamPage() {
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Ref always pointing at the latest handleSubmit to avoid stale closures in timer/realtime
   const handleSubmitRef = useRef<(auto?: boolean) => Promise<void>>(async () => {});
+  // Synchronous guard against double-submission (timer + realtime may fire before React re-renders)
+  const submittingRef = useRef(false);
   // Ref kept in sync with latest answers for use in beforeunload without stale closures
   const answersRef = useRef<Record<string, string>>({});
 
@@ -300,7 +302,8 @@ export default function ExamPage() {
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async (auto = false) => {
-    if (submitting) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     if (timerRef.current) clearInterval(timerRef.current);
     if (autoSaveRef.current) clearInterval(autoSaveRef.current);
     setSubmitting(true);
@@ -340,6 +343,7 @@ export default function ExamPage() {
 
     if (insertErr) {
       toast.error('জমা দিতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      submittingRef.current = false;
       setSubmitting(false);
       // Restart timers so student can retry
       if (exam?.timer_enabled !== false && remainingSecs > 0) {

@@ -59,11 +59,15 @@ function SendSMSTab() {
       return;
     }
     if (recipientType === 'due') {
-      const feeStatus = dueFilter === 'overdue' ? 'overdue' : 'pending';
-      const { data: feeRows } = await supabase
-        .from('fees')
-        .select('student_id')
-        .eq('status', feeStatus);
+      let feeQuery = supabase.from('fees').select('student_id').eq('status', dueFilter === 'overdue' ? 'overdue' : 'pending');
+      if (dueFilter === 'this_month') {
+        const now = new Date();
+        const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        const nextM = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const monthEnd = `${nextM.getFullYear()}-${String(nextM.getMonth() + 1).padStart(2, '0')}-01`;
+        feeQuery = feeQuery.gte('due_month', monthStart).lt('due_month', monthEnd);
+      }
+      const { data: feeRows } = await feeQuery;
       const uniqueIds = new Set((feeRows ?? []).map((f: any) => f.student_id).filter(Boolean));
       setRecipientCount(uniqueIds.size);
       return;
@@ -95,11 +99,15 @@ function SendSMSTab() {
     if (recipientType === 'custom') {
       phones = customNumbers.split('\n').map(n => n.trim()).filter(Boolean);
     } else if (recipientType === 'due') {
-      const feeStatus = dueFilter === 'overdue' ? 'overdue' : 'pending';
-      const { data: feeRows } = await supabase
-        .from('fees')
-        .select('student_id')
-        .eq('status', feeStatus);
+      let feeQuery = supabase.from('fees').select('student_id').eq('status', dueFilter === 'overdue' ? 'overdue' : 'pending');
+      if (dueFilter === 'this_month') {
+        const now = new Date();
+        const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        const nextM = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const monthEnd = `${nextM.getFullYear()}-${String(nextM.getMonth() + 1).padStart(2, '0')}-01`;
+        feeQuery = feeQuery.gte('due_month', monthStart).lt('due_month', monthEnd);
+      }
+      const { data: feeRows } = await feeQuery;
       const studentIds = [...new Set((feeRows ?? []).map((f: any) => f.student_id).filter(Boolean))];
       if (studentIds.length > 0) {
         const { data: studs } = await supabase

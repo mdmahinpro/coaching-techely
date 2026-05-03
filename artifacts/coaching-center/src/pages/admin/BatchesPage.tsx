@@ -42,8 +42,15 @@ export default function BatchesPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('batches').select('*, teacher:teachers(id,name)').order('created_at', { ascending: false });
-    setBatches((data ?? []) as Batch[]);
+    const [{ data }, { data: studentCounts }] = await Promise.all([
+      supabase.from('batches').select('*, teacher:teachers(id,name)').order('created_at', { ascending: false }),
+      supabase.from('students').select('batch_id').eq('status', 'active').not('batch_id', 'is', null),
+    ]);
+    const countMap: Record<string, number> = {};
+    (studentCounts ?? []).forEach((s: any) => {
+      if (s.batch_id) countMap[s.batch_id] = (countMap[s.batch_id] ?? 0) + 1;
+    });
+    setBatches(((data ?? []) as Batch[]).map(b => ({ ...b, enrolled_count: countMap[b.id] ?? 0 })));
     setLoading(false);
   }, []);
 
