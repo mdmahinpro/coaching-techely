@@ -263,9 +263,8 @@ export default function ResultsPage() {
               </div>
               <div className="space-y-3">
                 {questions.map((q, i) => {
-                  const answers: Record<string, string> = (() => {
-                    try { return JSON.parse(breakdown.answers ?? '{}'); } catch { return {}; }
-                  })();
+                  const raw = breakdown.answers;
+                  const answers: Record<string, string> = !raw ? {} : typeof raw === 'object' ? raw as Record<string,string> : (() => { try { return JSON.parse(raw); } catch { return {}; } })();
                   const studentAns = answers[q.id] ?? answers[String(i)] ?? null;
                   const correct = q.correct_option?.toUpperCase();
                   const isRight = (studentAns?.toUpperCase() ?? '') === correct;

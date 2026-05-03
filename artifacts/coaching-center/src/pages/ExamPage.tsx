@@ -51,6 +51,13 @@ type Step = 'loading' | 'verify' | 'instructions' | 'exam' | 'result' | 'already
 const OPTS = ['A', 'B', 'C', 'D'] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+/** Safely parse answers whether the JSONB column returns an object or a string */
+const parseAnswers = (raw: unknown): Record<string, string> => {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw as Record<string, string>;
+  try { return JSON.parse(raw as string); } catch { return {}; }
+};
+
 const fmtTime = (s: number) => {
   const m = Math.floor(Math.abs(s) / 60).toString().padStart(2, '0');
   const ss = (Math.abs(s) % 60).toString().padStart(2, '0');
@@ -571,13 +578,12 @@ export default function ExamPage() {
 
   // ── Render: Already Submitted ─────────────────────────────────────────────
   if (step === 'already-submitted' && submission) {
-    return <ResultView exam={exam!} submission={submission} questions={questions} answers={(() => { try { return JSON.parse(submission.answers ?? '{}'); } catch { return {}; } })()} leaderboard={leaderboard} studentId={student?.id} />;
+    return <ResultView exam={exam!} submission={submission} questions={questions} answers={parseAnswers(submission.answers)} leaderboard={leaderboard} studentId={student?.id} />;
   }
 
   // ── Render: Result ────────────────────────────────────────────────────────
   if (step === 'result' && submission) {
-    const answersObj: Record<string, string> = (() => { try { return JSON.parse(submission.answers ?? '{}'); } catch { return {}; } })();
-    return <ResultView exam={exam!} submission={submission} questions={questions} answers={answersObj} leaderboard={leaderboard} studentId={student?.id} />;
+    return <ResultView exam={exam!} submission={submission} questions={questions} answers={parseAnswers(submission.answers)} leaderboard={leaderboard} studentId={student?.id} />;
   }
 
   return null;

@@ -182,7 +182,7 @@ export default function PortalResultsPage() {
                     <button onClick={() => downloadResultCard(s)} className="p-1.5 rounded-lg hover:bg-sky-500/15 text-slate-400 hover:text-sky-400 transition-colors" title="Download">
                       <Download size={14} />
                     </button>
-                    <button onClick={() => { openBreakdown(s); }} className="p-1.5 rounded-lg hover:bg-violet-500/15 text-slate-400 hover:text-violet-400 transition-colors" title="Breakdown">
+                    <button onClick={() => { openBreakdown(s); setExpandedId(s.id); }} className="p-1.5 rounded-lg hover:bg-violet-500/15 text-slate-400 hover:text-violet-400 transition-colors" title="Breakdown">
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
                   </div>
