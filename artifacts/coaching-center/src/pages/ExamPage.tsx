@@ -87,6 +87,8 @@ export default function ExamPage() {
   const [submitting, setSubmitting] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Ref always pointing at the latest handleSubmit to avoid stale closures in timer/realtime
+  const handleSubmitRef = useRef<(auto?: boolean) => Promise<void>>(async () => {});
 
   // Result step
   const [submission, setSubmission] = useState<Submission | null>(null);
@@ -145,7 +147,7 @@ export default function ExamPage() {
         (payload) => {
           if (payload.new.status === 'ended') {
             toast.error('পরীক্ষার সময় শেষ হয়েছে! স্বয়ংক্রিয়ভাবে জমা হচ্ছে…');
-            handleSubmit(true);
+            handleSubmitRef.current(true);
           }
         })
       .subscribe();
@@ -163,8 +165,12 @@ export default function ExamPage() {
       .ilike('student_id', studentIdInput.trim()).single();
 
     if (!s) { setVerifyError('এই Student ID দিয়ে কোনো শিক্ষার্থী পাওয়া যায়নি।'); setVerifying(false); return; }
-    if (!s.is_approved && s.status !== 'active') {
+    if (!s.is_approved) {
       setVerifyError('আপনি এখনো অনুমোদিত হননি। Admin এর সাথে যোগাযোগ করুন।');
+      setVerifying(false); return;
+    }
+    if (s.status === 'suspended') {
+      setVerifyError('আপনার অ্যাকাউন্ট সাসপেন্ড করা হয়েছে। Admin এর সাথে যোগাযোগ করুন।');
       setVerifying(false); return;
     }
 
@@ -217,7 +223,7 @@ export default function ExamPage() {
         if (prev <= 1) {
           clearInterval(timerRef.current!);
           toast.error('সময় শেষ! স্বয়ংক্রিয়ভাবে জমা হয়েছে।', { duration: 5000 });
-          handleSubmit(true);
+          handleSubmitRef.current(true);
           return 0;
         }
         return prev - 1;
@@ -288,6 +294,9 @@ export default function ExamPage() {
     await loadLeaderboard();
     setStep('result');
   }, [questions, answers, exam, examId, student, remainingSecs, submitting]);
+
+  // Keep ref in sync so timer/realtime callbacks always call the freshest version
+  useEffect(() => { handleSubmitRef.current = handleSubmit; }, [handleSubmit]);
 
   const loadLeaderboard = async () => {
     const { data } = await supabase.from('mcq_submissions')
@@ -478,7 +487,7 @@ export default function ExamPage() {
 
                 {/* Options */}
                 <div className="space-y-2 ml-10">
-                  {OPTS.map(opt => {
+                  {OPTS.filter(opt => !!(q[`option_${opt.toLowerCase()}` as keyof Question] as string)).map(opt => {
                     const key = `option_${opt.toLowerCase()}` as keyof Question;
                     const text = q[key] as string;
                     const selected = answers[q.id] === opt;

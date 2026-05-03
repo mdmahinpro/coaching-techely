@@ -6,7 +6,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { formatDate, cn } from '@/lib/utils';
 import { Trophy, Award, BarChart2, X, Loader2, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { jsPDF } from 'jspdf';
+import { generateResultCard } from '@/lib/pdf';
 
 interface Submission {
   id: string;
@@ -62,53 +62,21 @@ export default function PortalResultsPage() {
   };
 
   const downloadResultCard = (sub: Submission) => {
-    const total = sub.exam?.total_marks ?? 100;
-    const pct = Math.round((sub.score / total) * 100);
-    const grade = GRADE(pct);
-    const pass = sub.score >= (sub.exam?.pass_marks ?? 0);
-
-    const doc = new jsPDF({ format: 'a5', unit: 'mm' });
-    doc.setFillColor(11, 17, 32); doc.rect(0, 0, 148, 210, 'F');
-    // Header bar
-    doc.setFillColor(56, 189, 248); doc.rect(0, 0, 148, 18, 'F');
-    doc.setTextColor(11, 17, 32); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-    doc.text(settings.centerName.toUpperCase(), 74, 12, { align: 'center' });
-    // Title
-    doc.setTextColor(248, 250, 252); doc.setFontSize(10);
-    doc.text('RESULT CARD', 74, 28, { align: 'center' });
-    doc.setDrawColor(30, 41, 59); doc.line(15, 32, 133, 32);
-    // Score ring area
-    doc.setFontSize(32); doc.setFont('helvetica', 'bold');
-    doc.setTextColor(pct >= 60 ? 52 : 239, pct >= 60 ? 211 : 68, pct >= 60 ? 153 : 68);
-    doc.text(`${pct}%`, 74, 60, { align: 'center' });
-    doc.setFontSize(14); doc.setTextColor(167, 139, 250);
-    doc.text(`Grade: ${grade}`, 74, 72, { align: 'center' });
-    // Details
-    doc.setDrawColor(30, 41, 59); doc.line(15, 78, 133, 78);
-    const rows = [
-      ['Student', student?.name ?? ''],
-      ['Student ID', student?.student_id ?? ''],
-      ['Exam', sub.exam?.title ?? ''],
-      ['Subject', sub.exam?.subject ?? ''],
-      ['Score', `${sub.score} / ${total}`],
-      ['Correct', String(sub.correct_count ?? '—')],
-      ['Wrong', String(sub.wrong_count ?? '—')],
-      ['Time', fmtTime(sub.time_taken)],
-      ['Rank', sub.rank ? `#${sub.rank}` : '—'],
-      ['Date', formatDate(sub.submitted_at)],
-    ];
-    let y = 90;
-    rows.forEach(([k, v]) => {
-      doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.text(k, 18, y);
-      doc.setTextColor(248, 250, 252); doc.setFontSize(9); doc.text(String(v), 75, y);
-      y += 9;
+    generateResultCard({
+      studentName: student?.name ?? '',
+      studentId: student?.student_id,
+      examTitle: sub.exam?.title ?? '',
+      subject: sub.exam?.subject ?? '',
+      score: sub.score,
+      totalMarks: sub.exam?.total_marks ?? 100,
+      passMarks: sub.exam?.pass_marks ?? 0,
+      correctCount: sub.correct_count ?? 0,
+      wrongCount: sub.wrong_count ?? 0,
+      timeTaken: sub.time_taken,
+      rank: sub.rank,
+      submittedAt: formatDate(sub.submitted_at),
+      instituteName: settings.centerName,
     });
-    // Pass/Fail stamp
-    doc.setDrawColor(30, 41, 59); doc.line(15, y + 2, 133, y + 2);
-    if (pass) { doc.setTextColor(52, 211, 153); } else { doc.setTextColor(239, 68, 68); }
-    doc.setFontSize(13); doc.setFont('helvetica', 'bold');
-    doc.text(pass ? '✓ PASSED' : '✗ FAILED', 74, y + 14, { align: 'center' });
-    doc.save(`result_${sub.exam_id.slice(-6)}_${student?.student_id}.pdf`);
   };
 
   const totalExams = submissions.length;
@@ -182,7 +150,13 @@ export default function PortalResultsPage() {
                     <button onClick={() => downloadResultCard(s)} className="p-1.5 rounded-lg hover:bg-sky-500/15 text-slate-400 hover:text-sky-400 transition-colors" title="Download">
                       <Download size={14} />
                     </button>
-                    <button onClick={() => { openBreakdown(s); setExpandedId(s.id); }} className="p-1.5 rounded-lg hover:bg-violet-500/15 text-slate-400 hover:text-violet-400 transition-colors" title="Breakdown">
+                    <button
+                      onClick={() => {
+                        if (expandedId === s.id) { setExpandedId(null); setBreakdown(null); return; }
+                        setExpandedId(s.id);
+                        openBreakdown(s);
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-violet-500/15 text-slate-400 hover:text-violet-400 transition-colors" title="Breakdown">
                       {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
                   </div>
@@ -197,12 +171,12 @@ export default function PortalResultsPage() {
       <AnimatePresence>
         {(breakdown || breakdownLoading) && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setBreakdown(null)} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setBreakdown(null); setExpandedId(null); }} />
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               className="relative card-glass w-full max-w-lg z-10 max-h-[85vh] flex flex-col">
               <div className="flex items-center justify-between p-5 border-b border-white/5 shrink-0">
                 <h2 className="font-inter font-bold text-white text-sm">উত্তর বিশ্লেষণ</h2>
-                <button onClick={() => setBreakdown(null)} className="text-slate-400 hover:text-white"><X size={18} /></button>
+                <button onClick={() => { setBreakdown(null); setExpandedId(null); }} className="text-slate-400 hover:text-white"><X size={18} /></button>
               </div>
               <div className="overflow-y-auto flex-1 p-5 space-y-3">
                 {breakdownLoading ? (

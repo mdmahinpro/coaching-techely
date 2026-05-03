@@ -5,7 +5,7 @@ import { useStudentStore } from '@/store/useStudentStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import { CheckCircle2, Clock, AlertCircle, Receipt, Smartphone, ExternalLink, DollarSign, Loader2 } from 'lucide-react';
-import { jsPDF } from 'jspdf';
+import { generateStudentReceipt } from '@/lib/pdf';
 
 interface Fee {
   id: string;
@@ -42,34 +42,19 @@ export default function PortalFeesPage() {
 
   const downloadReceipt = (fee: Fee) => {
     const note = parseNote(fee.note);
-    const doc = new jsPDF({ format: 'a5', unit: 'mm' });
-    doc.setFillColor(11, 17, 32); doc.rect(0, 0, 148, 210, 'F');
-    doc.setTextColor(248, 250, 252);
-    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-    doc.text(settings.centerName, 74, 25, { align: 'center' });
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-    doc.setTextColor(148, 163, 184);
-    doc.text('FEE RECEIPT', 74, 33, { align: 'center' });
-    doc.setDrawColor(30, 41, 59); doc.line(15, 38, 133, 38);
-    const rows = [
-      ['Receipt No', note.receipt_no ?? fee.id.slice(-8).toUpperCase()],
-      ['Student', student?.name ?? ''],
-      ['Student ID', student?.student_id ?? ''],
-      ['Month', fee.month],
-      ['Amount', formatCurrency(note.final_amount ?? fee.amount)],
-      ['Method', note.payment_method ?? 'Cash'],
-      ['Date', fee.payment_date ? formatDate(fee.payment_date) : ''],
-    ];
-    let y = 50;
-    rows.forEach(([k, v]) => {
-      doc.setTextColor(100, 116, 139); doc.setFontSize(8); doc.text(k, 18, y);
-      doc.setTextColor(248, 250, 252); doc.setFontSize(9); doc.text(String(v), 70, y);
-      y += 10;
+    generateStudentReceipt({
+      receiptNo: note.receipt_no ?? fee.id.slice(-8).toUpperCase(),
+      date: fee.payment_date ? formatDate(fee.payment_date) : formatDate(new Date().toISOString()),
+      studentName: student?.name ?? '',
+      studentId: student?.student_id,
+      month: fee.month,
+      feeAmount: fee.amount,
+      discount: note.discount ?? 0,
+      finalAmount: note.final_amount ?? fee.amount,
+      paymentMethod: note.payment_method ?? 'Cash',
+      transactionId: note.transaction_id,
+      instituteName: settings.centerName,
     });
-    doc.setDrawColor(30, 41, 59); doc.line(15, y + 2, 133, y + 2);
-    doc.setTextColor(56, 189, 248); doc.setFontSize(8);
-    doc.text('PAID ✓', 74, y + 12, { align: 'center' });
-    doc.save(`receipt_${fee.month}_${student?.student_id}.pdf`);
   };
 
   const FeeCard = ({ fee }: { fee: Fee }) => {
