@@ -89,6 +89,8 @@ export default function ExamPage() {
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Ref always pointing at the latest handleSubmit to avoid stale closures in timer/realtime
   const handleSubmitRef = useRef<(auto?: boolean) => Promise<void>>(async () => {});
+  // Ref kept in sync with latest answers for use in beforeunload without stale closures
+  const answersRef = useRef<Record<string, string>>({});
 
   // Result step
   const [submission, setSubmission] = useState<Submission | null>(null);
@@ -130,6 +132,22 @@ export default function ExamPage() {
           return;
         }
         if (e.status === 'ended') { setStep('ended'); return; }
+
+        // Try to resume in-progress exam from localStorage
+        const saved = localStorage.getItem(`exam-answers-${examId}-${sessionStudent.id}`);
+        if (saved) {
+          try {
+            setAnswers(JSON.parse(saved));
+            let secs = (e.duration_minutes ?? 30) * 60;
+            if (e.timer_enabled !== false && e.end_time) {
+              secs = Math.max(0, Math.floor((new Date(e.end_time).getTime() - Date.now()) / 1000));
+            }
+            setRemainingSecs(secs);
+            setStep('exam');
+            return;
+          } catch { /* ignore, fall through to instructions */ }
+        }
+
         setStep('instructions');
         return;
       }
@@ -190,6 +208,23 @@ export default function ExamPage() {
       return;
     }
 
+    // Try to resume in-progress exam from localStorage
+    const saved = localStorage.getItem(`exam-answers-${examId}-${s.id}`);
+    if (saved) {
+      try {
+        setAnswers(JSON.parse(saved));
+        let secs = (exam?.duration_minutes ?? 30) * 60;
+        if (exam?.timer_enabled !== false && exam?.end_time) {
+          secs = Math.max(0, Math.floor((new Date(exam.end_time).getTime() - Date.now()) / 1000));
+        }
+        setRemainingSecs(secs);
+        setStudent(s);
+        setVerifying(false);
+        setStep('exam');
+        return;
+      } catch { /* ignore, fall through to instructions */ }
+    }
+
     setStudent(s);
     setVerifying(false);
     setStep('instructions');
@@ -241,6 +276,22 @@ export default function ExamPage() {
     }, 10000);
     return () => { if (autoSaveRef.current) clearInterval(autoSaveRef.current); };
   }, [step, answers, examId, student?.id]);
+
+  // ── Keep answersRef in sync ────────────────────────────────────────────────
+  useEffect(() => { answersRef.current = answers; }, [answers]);
+
+  // ── Warn before tab close / navigation during exam ────────────────────────
+  useEffect(() => {
+    if (step !== 'exam') return;
+    const handler = (e: BeforeUnloadEvent) => {
+      // Flush latest answers immediately so nothing is lost beyond the 10s interval
+      localStorage.setItem(`exam-answers-${examId}-${student?.id}`, JSON.stringify(answersRef.current));
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [step, examId, student?.id]);
 
   const selectAnswer = (questionId: string, opt: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: opt }));
