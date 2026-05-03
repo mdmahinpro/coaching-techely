@@ -17,7 +17,9 @@ export default function PortalDashboardPage() {
   const [notices, setNotices] = useState<any[]>([]);
   const [recentResults, setRecentResults] = useState<any[]>([]);
 
-  const readNotices: string[] = JSON.parse(localStorage.getItem('portal-read-notices') ?? '[]');
+  const [readNotices, setReadNotices] = useState<string[]>(() =>
+    JSON.parse(localStorage.getItem('portal-read-notices') ?? '[]')
+  );
 
   useEffect(() => {
     if (!student) return;
@@ -55,6 +57,7 @@ export default function PortalDashboardPage() {
       const noticeList = noticesRes.data ?? [];
       setNotices(noticeList);
       const freshRead: string[] = JSON.parse(localStorage.getItem('portal-read-notices') ?? '[]');
+      setReadNotices(freshRead);
       setUnreadNotices(noticeList.filter(n => !freshRead.includes(n.id)).length);
     };
     load();
@@ -141,7 +144,7 @@ export default function PortalDashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         {STATS.map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
-            <Link to={s.to} className="card p-4 flex items-center gap-3 hover:border-white/10 transition-colors block">
+            <Link to={s.to} className="card p-4 flex items-center gap-3 hover:border-white/10 transition-colors">
               <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', s.bg)}>
                 <s.icon size={17} className={s.color} />
               </div>

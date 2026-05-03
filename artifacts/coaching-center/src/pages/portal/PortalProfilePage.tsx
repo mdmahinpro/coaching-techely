@@ -45,8 +45,8 @@ export default function PortalProfilePage() {
     if (!file || !student) return;
     setUploading(true);
     const blob = await compressImage(file);
-    if (blob.size > 300 * 1024) {
-      toast.error('ছবির সাইজ ৩০০KB এর বেশি হওয়া যাবে না');
+    if (blob.size > 5 * 1024 * 1024) {
+      toast.error('ছবির সাইজ ৫MB এর বেশি হওয়া যাবে না');
       setUploading(false);
       return;
     }

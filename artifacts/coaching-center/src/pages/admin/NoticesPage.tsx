@@ -63,6 +63,7 @@ export default function NoticesPage() {
 
   const handleSave = async () => {
     if (!editing.title || !editing.content) { toast.error('Title and content are required'); return; }
+    if (editing.target === 'batch' && !editing.batch_id) { toast.error('Please select a batch for batch-targeted notices'); return; }
     setSaving(true);
     const payload = {
       title: editing.title,

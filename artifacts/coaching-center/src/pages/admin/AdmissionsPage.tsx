@@ -102,7 +102,13 @@ export default function AdmissionsPage() {
     }
 
     // Update admission status
-    await supabase.from('admission_requests').update({ status: 'approved' }).eq('id', admission.id);
+    const { error: statusErr } = await supabase.from('admission_requests').update({ status: 'approved' }).eq('id', admission.id);
+    if (statusErr) {
+      toast.error('Student created but admission status update failed. Please refresh and check.');
+      setActing(null);
+      load();
+      return;
+    }
     toast.success(`Approved! Student ID: ${studentId} · Password: ${password}`);
 
     // Send SMS with correct password

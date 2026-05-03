@@ -58,6 +58,7 @@ export default function StudentsPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [drawerStudent, setDrawerStudent] = useState<Student | null>(null);
   const q = useDebounce(search, 300);
@@ -235,7 +236,12 @@ export default function StudentsPage() {
               <thead>
                 <tr className="border-b border-navy-700">
                   <th className="text-left px-4 py-3 text-slate-400 font-medium w-8">
-                    <input type="checkbox" className="rounded accent-sky-400" />
+                    <input
+                      type="checkbox"
+                      className="rounded accent-sky-400"
+                      checked={students.length > 0 && students.every(s => selectedIds.has(s.id))}
+                      onChange={e => setSelectedIds(e.target.checked ? new Set(students.map(s => s.id)) : new Set())}
+                    />
                   </th>
                   <th className="text-left px-4 py-3 text-slate-400 font-medium">Student</th>
                   <th className="text-left px-4 py-3 text-slate-400 font-medium">ID</th>
@@ -256,7 +262,16 @@ export default function StudentsPage() {
                     className="border-b border-navy-700/40 hover:bg-white/[0.02] transition-colors group"
                   >
                     <td className="px-4 py-3">
-                      <input type="checkbox" className="rounded accent-sky-400" />
+                      <input
+                        type="checkbox"
+                        className="rounded accent-sky-400"
+                        checked={selectedIds.has(s.id)}
+                        onChange={e => setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(s.id); else next.delete(s.id);
+                          return next;
+                        })}
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
@@ -414,7 +429,7 @@ export default function StudentsPage() {
       {/* Add/Edit Modal */}
       <StudentModal
         open={modalOpen}
-        student={editing ? { ...editing, status: editing.status === 'suspended' ? 'inactive' : editing.status } : undefined}
+        student={editing ? { ...editing } : undefined}
         batches={batches}
         onSave={handleSave}
         onClose={() => { setModalOpen(false); setEditing(null); }}

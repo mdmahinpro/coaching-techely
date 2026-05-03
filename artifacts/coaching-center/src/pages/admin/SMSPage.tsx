@@ -84,7 +84,9 @@ function SendSMSTab() {
   };
 
   const charCount = message.length;
-  const smsUnits = Math.ceil(charCount / 160) || 1;
+  const hasNonGSM = /[^\x00-\x7F]/.test(message);
+  const charsPerUnit = hasNonGSM ? 70 : 160;
+  const smsUnits = Math.ceil(charCount / charsPerUnit) || 1;
 
   const preview = fillTemplate(message, SAMPLE_VARS);
 

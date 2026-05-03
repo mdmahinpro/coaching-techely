@@ -68,9 +68,9 @@ export default function ResultsPage() {
   const recalcRanks = async () => {
     if (!subs.length) return;
     const sorted = [...subs].sort((a, b) => b.score - a.score || a.time_taken - b.time_taken);
-    for (let i = 0; i < sorted.length; i++) {
-      await supabase.from('mcq_submissions').update({ rank: i + 1 }).eq('id', sorted[i].id);
-    }
+    await Promise.all(
+      sorted.map((s, i) => supabase.from('mcq_submissions').update({ rank: i + 1 }).eq('id', s.id))
+    );
     toast.success('Ranks recalculated');
     load(examId);
   };

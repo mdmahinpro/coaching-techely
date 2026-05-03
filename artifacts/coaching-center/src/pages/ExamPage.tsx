@@ -194,8 +194,11 @@ export default function ExamPage() {
       setVerifying(false); return;
     }
 
-    // Check if exam ended
-    if (exam?.status === 'ended') { setStep('ended'); setVerifying(false); return; }
+    // Re-fetch current exam status to avoid using a stale locally-cached value
+    const { data: freshExam } = await supabase.from('exams').select('status').eq('id', examId).single();
+    if (freshExam?.status === 'ended' || freshExam?.status === 'cancelled') {
+      setStep('ended'); setVerifying(false); return;
+    }
 
     // Check already submitted
     const { data: existing } = await supabase.from('mcq_submissions')

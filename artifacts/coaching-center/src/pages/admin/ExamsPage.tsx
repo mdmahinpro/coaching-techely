@@ -101,11 +101,16 @@ function TimerModal({ exam, onClose, onUpdate }: { exam: Exam; onClose: () => vo
     onUpdate();
   };
 
-  const handleStart = () => doUpdate({
-    status: 'active',
-    start_time: new Date().toISOString(),
-    end_time: new Date(Date.now() + (exam.duration_minutes * 60000)).toISOString(),
-  }, 'active');
+  const handleStart = () => {
+    const mins = Number(customMin);
+    const duration = (mins && mins >= 1) ? mins : exam.duration_minutes;
+    doUpdate({
+      status: 'active',
+      start_time: new Date().toISOString(),
+      end_time: new Date(Date.now() + duration * 60000).toISOString(),
+      ...(duration !== exam.duration_minutes && { duration_minutes: duration }),
+    }, 'active');
+  };
 
   const handlePause = () => doUpdate({
     status: 'paused',
@@ -299,9 +304,12 @@ function AllExamsTab({ onTabChange }: { onTabChange: (t: Tab) => void }) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    await supabase.from('mcq_submissions').delete().eq('exam_id', deleteTarget.id);
-    await supabase.from('mcq_questions').delete().eq('exam_id', deleteTarget.id);
-    await supabase.from('exams').delete().eq('id', deleteTarget.id);
+    const { error: e1 } = await supabase.from('mcq_submissions').delete().eq('exam_id', deleteTarget.id);
+    if (e1) { toast.error('Failed to delete submissions: ' + e1.message); setDeleting(false); return; }
+    const { error: e2 } = await supabase.from('mcq_questions').delete().eq('exam_id', deleteTarget.id);
+    if (e2) { toast.error('Failed to delete questions: ' + e2.message); setDeleting(false); return; }
+    const { error: e3 } = await supabase.from('exams').delete().eq('id', deleteTarget.id);
+    if (e3) { toast.error('Failed to delete exam: ' + e3.message); setDeleting(false); return; }
     toast.success('Exam deleted');
     setDeleteTarget(null);
     setDeleting(false);

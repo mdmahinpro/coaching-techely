@@ -230,10 +230,9 @@ function GenerateTab({ batches }: { batches: any[] }) {
     const suspended = (allStudents ?? []).filter(s => s.status === 'suspended');
     const active = (allStudents ?? []).filter(s => s.status === 'active');
 
-    // Fetch existing fee records for this month
-    let eq = supabase.from('fees').select('student_id').eq('month', monthStr);
-    if (batchId !== 'all') eq = eq.eq('batch_id', batchId);
-    const { data: existing } = await eq;
+    // Fetch existing fee records for this month — filter by student_id only, not batch_id,
+    // so students who changed batches don't get duplicate fees generated.
+    const { data: existing } = await supabase.from('fees').select('student_id').eq('month', monthStr);
     const existingIds = new Set((existing ?? []).map(e => e.student_id));
 
     const toCreate = active.filter(s => !existingIds.has(s.id));
@@ -412,7 +411,7 @@ function RecordPaymentTab() {
       .select('*, batch:batches(name)')
       .eq('student_id', selectedStudent.id)
       .neq('status', 'paid')
-      .order('due_date', { ascending: false })
+      .order('due_date', { ascending: true })
       .then(({ data }) => { setUnpaidFees(data ?? []); });
   }, [selectedStudent]);
 

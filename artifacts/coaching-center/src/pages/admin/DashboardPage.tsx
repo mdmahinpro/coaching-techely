@@ -54,12 +54,14 @@ export default function DashboardPage() {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString();
 
     const [
-      studentRes, monthPaidRes, pendingRes, activeExamRes,
+      studentCountRes, studentChartRes, monthPaidRes, pendingRes, activeExamRes,
       admissionsRes, examsRes, allFeesRes,
     ] = await Promise.all([
-      supabase.from('students').select('id,created_at', { count: 'exact' }),
+      supabase.from('students').select('id', { count: 'exact', head: true }),
+      supabase.from('students').select('id,created_at').gte('created_at', sixMonthsAgo),
       supabase.from('fees').select('amount,note').eq('status', 'paid').gte('payment_date', monthStart).lte('payment_date', monthEnd),
       supabase.from('fees').select('amount').eq('status', 'pending'),
       supabase.from('exams').select('id', { count: 'exact', head: true }).eq('status', 'active'),
@@ -71,17 +73,14 @@ export default function DashboardPage() {
     const parseNote = (n: any) => { try { return n ? JSON.parse(n) : {}; } catch { return {}; } };
     const monthCollected = (monthPaidRes.data ?? []).reduce((s: number, r: any) => { const meta = parseNote(r.note); return s + (meta.final_amount ?? r.amount ?? 0); }, 0);
     const pendingFees = (pendingRes.data ?? []).reduce((s: number, r: any) => s + (r.amount ?? 0), 0);
-    setStats({ activeStudents: studentRes.count ?? 0, monthCollected, pendingFees, activeExams: activeExamRes.count ?? 0 });
+    setStats({ activeStudents: studentCountRes.count ?? 0, monthCollected, pendingFees, activeExams: activeExamRes.count ?? 0 });
 
-    const students = studentRes.data ?? [];
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const students = studentChartRes.data ?? [];
     const monthCounts: Record<string, number> = {};
     students.forEach((s: any) => {
       const d = new Date(s.created_at);
-      if (d >= sixMonthsAgo) {
-        const key = `${d.getFullYear()}-${d.getMonth()}`;
-        monthCounts[key] = (monthCounts[key] ?? 0) + 1;
-      }
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      monthCounts[key] = (monthCounts[key] ?? 0) + 1;
     });
     const trend = [];
     for (let i = 5; i >= 0; i--) {
