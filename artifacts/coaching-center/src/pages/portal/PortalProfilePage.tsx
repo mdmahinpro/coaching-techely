@@ -33,7 +33,7 @@ export default function PortalProfilePage() {
         }
         canvas.width = width; canvas.height = height;
         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.85);
+        canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
       };
       img.onerror = () => { URL.revokeObjectURL(objectUrl); };
       img.src = objectUrl;
@@ -118,7 +118,7 @@ export default function PortalProfilePage() {
               </button>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
             </div>
-            <p className="text-slate-500 text-xs mb-4">Max 300KB · JPG/PNG</p>
+            <p className="text-slate-500 text-xs mb-4">Max 5MB · Auto-compressed · JPG/PNG</p>
 
             <h2 className="font-inter font-bold text-white text-lg">{student.name}</h2>
             <p className="font-mono text-sky-400 text-sm">{student.student_id}</p>

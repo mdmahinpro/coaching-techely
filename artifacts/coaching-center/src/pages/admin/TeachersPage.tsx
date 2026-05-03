@@ -60,10 +60,31 @@ export default function TeachersPage() {
     setModalOpen(false);
   };
 
+  const compressImage = (file: File): Promise<Blob> =>
+    new Promise(resolve => {
+      const canvas = document.createElement('canvas');
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const MAX = 800;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+          else { width = Math.round(width * MAX / height); height = MAX; }
+        }
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
+      };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); };
+      img.src = objectUrl;
+    });
+
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 300 * 1024) { toast.error('Photo must be under 300 KB'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Photo must be under 5 MB'); return; }
     setPhotoPreview(prev => { revokeBlobPreview(prev); return URL.createObjectURL(file); });
     setPhotoFile(file);
   };
@@ -71,8 +92,9 @@ export default function TeachersPage() {
   const uploadPhoto = async (): Promise<string | null> => {
     if (!photoFile) return editing.photo_url ?? null;
     setUploading(true);
-    const path = `teachers/${Date.now()}-${photoFile.name.replace(/\s/g, '_')}`;
-    const { error } = await supabase.storage.from('avatars').upload(path, photoFile, { upsert: true });
+    const blob = await compressImage(photoFile);
+    const path = `teachers/${Date.now()}.jpg`;
+    const { error } = await supabase.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
     setUploading(false);
     if (error) { toast.error('Photo upload failed'); return null; }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
@@ -202,7 +224,7 @@ export default function TeachersPage() {
                   </button>
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
                 </div>
-                <p className="text-center text-slate-600 text-xs">Max 300KB · JPG/PNG</p>
+                <p className="text-center text-slate-600 text-xs">Max 5MB · Auto-compressed · JPG/PNG</p>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
