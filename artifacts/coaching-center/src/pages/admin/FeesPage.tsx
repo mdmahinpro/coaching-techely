@@ -7,7 +7,8 @@ import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DollarSign, TrendingUp, AlertTriangle, FileText, Send,
-  Search, Printer, RefreshCw, CheckCircle2, X, Loader2
+  Search, Printer, RefreshCw, CheckCircle2, X, Loader2,
+  History, Eye, User, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -17,18 +18,45 @@ import { generateReceipt } from '@/lib/pdf';
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const now = new Date();
 
-type Tab = 'overview' | 'generate' | 'record' | 'due';
+type Tab = 'overview' | 'generate' | 'record' | 'due' | 'audit';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'generate', label: 'Generate Fees' },
   { id: 'record', label: 'Record Payment' },
   { id: 'due', label: 'Due Report' },
+  { id: 'audit', label: 'Audit Log' },
 ];
 
 const generateReceiptNo = () => {
   const d = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   return `RCT-${d}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
 };
+
+async function logFeeAudit(params: {
+  fee_id?: string | null;
+  action: string;
+  old_data?: Record<string, unknown> | null;
+  new_data?: Record<string, unknown> | null;
+  student_name?: string;
+  student_code?: string;
+  month?: string;
+}) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('fee_audit_logs').insert({
+      fee_id: params.fee_id ?? null,
+      action: params.action,
+      admin_email: user?.email ?? 'unknown',
+      student_name: params.student_name ?? null,
+      student_code: params.student_code ?? null,
+      month: params.month ?? null,
+      old_data: params.old_data ?? null,
+      new_data: params.new_data ?? null,
+    });
+  } catch {
+    // Audit failures must never break the main payment flow
+  }
+}
 
 const daysOverdue = (month: string): number => {
   try {
@@ -234,8 +262,23 @@ function GenerateTab({ batches }: { batches: any[] }) {
           due_date: due.toISOString().slice(0, 10),
         }))
       );
-      if (!error) created = toCreate.length;
-      else { toast.error('Error creating fees: ' + error.message); setGenerating(false); return; }
+      if (!error) {
+        created = toCreate.length;
+        // Audit log — one summary entry for the bulk generation
+        logFeeAudit({
+          action: 'fee_generated',
+          month: monthStr,
+          new_data: {
+            count: created,
+            month: monthStr,
+            batch: batchId,
+          },
+        });
+      } else {
+        toast.error('Error creating fees: ' + error.message);
+        setGenerating(false);
+        return;
+      }
     }
 
     setResult({
@@ -397,6 +440,25 @@ function RecordPaymentTab() {
     }).eq('id', selectedFee.id);
 
     if (error) { toast.error('Payment failed: ' + error.message); setSaving(false); return; }
+
+    // Audit log — fire-and-forget, never blocks payment flow
+    logFeeAudit({
+      fee_id: selectedFee.id,
+      action: 'payment_recorded',
+      old_data: {
+        status: selectedFee.status,
+        note: selectedFee.note ?? null,
+        amount: selectedFee.amount,
+      },
+      new_data: {
+        status: 'paid',
+        amount: selectedFee.amount,
+        ...meta,
+      },
+      student_name: selectedStudent.name,
+      student_code: selectedStudent.student_id,
+      month: selectedFee.month,
+    });
 
     // SMS
     if (sendSMSFlag && selectedStudent.phone) {
@@ -788,6 +850,221 @@ function DueReportTab({ batches }: { batches: any[] }) {
   );
 }
 
+// ── Audit Log Tab ─────────────────────────────────────────────────────────────
+const ACTION_META: Record<string, { label: string; color: string; bg: string }> = {
+  payment_recorded: { label: 'Payment Recorded', color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
+  fee_generated:    { label: 'Fees Generated',   color: 'text-sky-400',     bg: 'bg-sky-400/10'     },
+  fee_deleted:      { label: 'Fee Deleted',       color: 'text-red-400',     bg: 'bg-red-400/10'     },
+};
+
+function AuditLogTab() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>('all');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const PER_PAGE = 50;
+
+  const load = useCallback(async (reset = false) => {
+    setLoading(true);
+    const currentPage = reset ? 0 : page;
+    let q = supabase
+      .from('fee_audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(currentPage * PER_PAGE, (currentPage + 1) * PER_PAGE - 1);
+    if (filter !== 'all') q = q.eq('action', filter);
+    const { data } = await q;
+    const rows = data ?? [];
+    setLogs(prev => currentPage === 0 ? rows : [...prev, ...rows]);
+    setHasMore(rows.length === PER_PAGE);
+    setLoading(false);
+  }, [filter, page]);
+
+  useEffect(() => {
+    setPage(0);
+    setLogs([]);
+    load(true);
+  }, [filter]);
+
+  useEffect(() => {
+    if (page > 0) load();
+  }, [page]);
+
+  const formatDetail = (log: any): string => {
+    if (log.action === 'payment_recorded' && log.new_data) {
+      const d = log.new_data as any;
+      const parts: string[] = [`৳${d.final_amount ?? '?'}`];
+      if ((d.discount ?? 0) > 0) parts.push(`(৳${d.discount} discount)`);
+      if (d.payment_method) parts.push(`via ${d.payment_method}`);
+      if (d.receipt_no) parts.push(`• ${d.receipt_no}`);
+      return parts.join(' ');
+    }
+    if (log.action === 'fee_generated' && log.new_data) {
+      const d = log.new_data as any;
+      const batchPart = d.batch && d.batch !== 'all' ? ' (single batch)' : '';
+      return `${d.count} record${d.count !== 1 ? 's' : ''} created for ${d.month}${batchPart}`;
+    }
+    return '—';
+  };
+
+  const FILTER_OPTIONS = [
+    { id: 'all', label: 'All Activity' },
+    { id: 'payment_recorded', label: 'Payments Only' },
+    { id: 'fee_generated', label: 'Generation Only' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        <div className="flex gap-2 flex-wrap">
+          {FILTER_OPTIONS.map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`filter-pill ${filter === f.id ? 'active' : ''}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-slate-500 text-xs">
+          All fee changes by admins are recorded here permanently
+        </span>
+      </div>
+
+      <div className="card overflow-hidden">
+        {loading && logs.length === 0 ? (
+          <div className="divide-y divide-navy-700/30">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-14 mx-4 my-2 bg-navy-700 rounded animate-pulse" />
+            ))}
+          </div>
+        ) : logs.length === 0 ? (
+          <div className="text-center py-16">
+            <History size={32} className="text-slate-600 mx-auto mb-3" />
+            <p className="text-slate-500 text-sm font-medium">No audit entries yet</p>
+            <p className="text-slate-600 text-xs mt-1">Every payment recorded or fee generated will appear here</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-navy-700/50">
+                    {['Date & Time', 'Action', 'Admin', 'Student', 'Month', 'Summary', ''].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-slate-400 font-medium text-xs whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map(log => {
+                    const meta = ACTION_META[log.action] ?? { label: log.action, color: 'text-slate-400', bg: 'bg-slate-400/10' };
+                    const isExp = expanded === log.id;
+                    const dt = new Date(log.created_at);
+                    return (
+                      <>
+                        <tr key={log.id} className="border-b border-navy-700/30 hover:bg-white/[0.02] transition-colors">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <p className="text-slate-300 text-xs">
+                              {dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
+                            <p className="text-slate-600 text-xs">
+                              {dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={cn('text-xs font-medium px-2.5 py-1 rounded-full', meta.color, meta.bg)}>
+                              {meta.label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {log.admin_email ? (
+                              <span className="flex items-center gap-1.5 text-slate-300 text-xs">
+                                <User size={11} className="text-slate-500 shrink-0" />
+                                {log.admin_email}
+                              </span>
+                            ) : <span className="text-slate-600 text-xs">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {log.student_name ? (
+                              <div>
+                                <p className="text-white text-sm font-medium">{log.student_name}</p>
+                                {log.student_code && (
+                                  <p className="font-mono text-sky-400 text-xs">{log.student_code}</p>
+                                )}
+                              </div>
+                            ) : <span className="text-slate-600 text-xs">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-slate-300 text-sm whitespace-nowrap">
+                            {log.month || '—'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-400 text-xs max-w-xs">
+                            {formatDetail(log)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => setExpanded(isExp ? null : log.id)}
+                              className="p-1.5 rounded-lg hover:bg-white/5 text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1 text-xs"
+                              title="View raw before/after data"
+                            >
+                              <Eye size={12} />
+                              {isExp ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                            </button>
+                          </td>
+                        </tr>
+                        {isExp && (
+                          <tr key={`${log.id}-exp`} className="border-b border-navy-700/30">
+                            <td colSpan={7} className="px-6 py-4 bg-navy-900/50">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <p className="text-slate-500 text-xs font-medium mb-2 uppercase tracking-wide">Before</p>
+                                  <pre className="text-slate-400 text-xs bg-navy-800/70 border border-navy-700/50 rounded-lg p-3 overflow-x-auto font-mono leading-relaxed">
+                                    {log.old_data
+                                      ? JSON.stringify(log.old_data, null, 2)
+                                      : 'null  (new record — no prior state)'}
+                                  </pre>
+                                </div>
+                                <div>
+                                  <p className="text-slate-500 text-xs font-medium mb-2 uppercase tracking-wide">After</p>
+                                  <pre className="text-slate-400 text-xs bg-navy-800/70 border border-navy-700/50 rounded-lg p-3 overflow-x-auto font-mono leading-relaxed">
+                                    {log.new_data
+                                      ? JSON.stringify(log.new_data, null, 2)
+                                      : 'null'}
+                                  </pre>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Load more */}
+            {hasMore && (
+              <div className="p-4 text-center border-t border-navy-700/50">
+                <button
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={loading}
+                  className="btn-outline text-sm"
+                >
+                  {loading ? <Loader2 size={14} className="animate-spin" /> : 'Load More'}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function FeesPage() {
   const [tab, setTab] = useState<Tab>('overview');
@@ -820,6 +1097,7 @@ export default function FeesPage() {
       {tab === 'generate' && <GenerateTab batches={batches} />}
       {tab === 'record' && <RecordPaymentTab />}
       {tab === 'due' && <DueReportTab batches={batches} />}
+      {tab === 'audit' && <AuditLogTab />}
     </AdminLayout>
   );
 }

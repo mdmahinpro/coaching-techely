@@ -113,9 +113,29 @@ CREATE POLICY IF NOT EXISTS "Allow auth all mcq_submissions"
 CREATE POLICY IF NOT EXISTS "Allow auth all site_settings"
   ON site_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- ── fee_audit_logs: payment change history ───────────────────
+CREATE TABLE IF NOT EXISTS fee_audit_logs (
+  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  fee_id        UUID REFERENCES fees(id) ON DELETE SET NULL,
+  action        TEXT NOT NULL,
+  admin_email   TEXT,
+  student_name  TEXT,
+  student_code  TEXT,
+  month         TEXT,
+  old_data      JSONB,
+  new_data      JSONB,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE fee_audit_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "Allow auth all fee_audit_logs"
+  ON fee_audit_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
 -- ── Done ─────────────────────────────────────────────────────
 -- After running this migration, the full system will work including:
 -- • Student portal login (students.password + is_approved)
 -- • MCQ exams with live timer
 -- • Exam result submissions and leaderboard
 -- • Settings saved to database (site_settings)
+-- • Fee payment audit log (fee_audit_logs)
