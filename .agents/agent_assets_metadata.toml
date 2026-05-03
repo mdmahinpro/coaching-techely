@@ -6,3 +6,9 @@ id = "-2-BWVNRUVWOUuhKaA1Vn"
 uri = "file://techely-coaching-center.tar.gz"
 type = "unspecified"
 title = "Techely Coaching Center — Full Source Code"
+
+[[outputs]]
+id = "mf6jDINO2CI9drKf7A7r3"
+uri = "file://coaching-center-source.tar.gz"
+type = "unspecified"
+title = "Coaching Center — Full Source Code"
