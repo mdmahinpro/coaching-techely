@@ -12,9 +12,10 @@ const TABLES = [
   { key: 'teachers', label: 'Teachers' },
   { key: 'batches', label: 'Batches' },
   { key: 'fees', label: 'Fee Records' },
+  { key: 'fee_audit_logs', label: 'Fee Audit Logs' },
   { key: 'exams', label: 'Exams' },
   { key: 'mcq_questions', label: 'MCQ Questions' },
-  { key: 'mcq_submissions', label: 'MCQ Submissions' },
+  { key: 'mcq_submissions', label: 'Results (MCQ Submissions)' },
   { key: 'notices', label: 'Notices' },
   { key: 'sms_logs', label: 'SMS Logs' },
   { key: 'admission_requests', label: 'Admission Requests' },
@@ -48,20 +49,28 @@ const RESET_GROUPS = [
     tables: ['notices'],
   },
   {
+    id: 'results',
+    label: 'পরীক্ষার ফলাফল',
+    labelEn: 'Exam Results',
+    icon: '🏆',
+    description: 'সব পরীক্ষার রেজাল্ট ও সাবমিশন মুছবে',
+    tables: ['mcq_submissions'],
+  },
+  {
     id: 'exams',
     label: 'পরীক্ষা ও প্রশ্নপত্র',
-    labelEn: 'Exams + Questions + Submissions',
+    labelEn: 'Exams + Questions',
     icon: '📝',
-    description: 'সব পরীক্ষা, প্রশ্ন ও সাবমিশন মুছবে',
-    tables: ['mcq_submissions', 'mcq_questions', 'exams'],
+    description: 'সব পরীক্ষা ও MCQ প্রশ্ন মুছবে (ফলাফল আগে মুছুন)',
+    tables: ['mcq_questions', 'exams'],
   },
   {
     id: 'fees',
     label: 'ফি রেকর্ড',
-    labelEn: 'Fee Records',
+    labelEn: 'Fee Records + Audit Log',
     icon: '💰',
-    description: 'সব ফি পেমেন্ট রেকর্ড মুছবে',
-    tables: ['fees'],
+    description: 'সব ফি পেমেন্ট ও পরিবর্তনের ইতিহাস মুছবে',
+    tables: ['fee_audit_logs', 'fees'],
   },
   {
     id: 'students',
@@ -213,7 +222,7 @@ export default function BackupPage() {
     let totalRestored = 0;
     const RESTORE_ORDER = [
       'site_settings', 'batches', 'teachers', 'students',
-      'fees', 'notices', 'exams', 'mcq_questions',
+      'fees', 'fee_audit_logs', 'notices', 'exams', 'mcq_questions',
       'mcq_submissions', 'sms_logs', 'admission_requests',
     ];
     const processed = new Set<string>();
@@ -260,6 +269,7 @@ export default function BackupPage() {
       'admission_requests',
       'notices',
       'mcq_submissions',
+      'fee_audit_logs',
       'mcq_questions',
       'exams',
       'fees',
