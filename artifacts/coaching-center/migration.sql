@@ -30,10 +30,11 @@ ALTER TABLE fees ADD COLUMN IF NOT EXISTS batch_id UUID REFERENCES batches(id);
 ALTER TABLE fees ADD COLUMN IF NOT EXISTS due_date  DATE;
 
 -- ── exams: add missing columns ───────────────────────────────
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS status        TEXT DEFAULT 'upcoming';
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_time    TIMESTAMPTZ;
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_time      TIMESTAMPTZ;
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS timer_enabled BOOLEAN DEFAULT true;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS status                   TEXT DEFAULT 'upcoming';
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_time               TIMESTAMPTZ;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_time                 TIMESTAMPTZ;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS timer_enabled            BOOLEAN DEFAULT true;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS paused_remaining_seconds INTEGER;
 
 -- ── notices: add missing columns ─────────────────────────────
 ALTER TABLE notices ADD COLUMN IF NOT EXISTS type     TEXT;
@@ -132,10 +133,20 @@ ALTER TABLE fee_audit_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY IF NOT EXISTS "Allow auth all fee_audit_logs"
   ON fee_audit_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- ── fees: fix status CHECK constraint (include waived) ───────
+-- Drop old constraint (only had pending/paid/overdue) and re-add with waived
+ALTER TABLE fees DROP CONSTRAINT IF EXISTS fees_status_check;
+ALTER TABLE fees ADD CONSTRAINT fees_status_check
+  CHECK (status IN ('pending','paid','overdue','waived'));
+
+-- ── students: remove blocking status CHECK (allow suspended) ─
+ALTER TABLE students DROP CONSTRAINT IF EXISTS students_status_check;
+
 -- ── Done ─────────────────────────────────────────────────────
 -- After running this migration, the full system will work including:
 -- • Student portal login (students.password + is_approved)
--- • MCQ exams with live timer
+-- • MCQ exams with live timer + pause/resume (paused_remaining_seconds)
 -- • Exam result submissions and leaderboard
 -- • Settings saved to database (site_settings)
 -- • Fee payment audit log (fee_audit_logs)
+-- • Fee waiver support (waived status in fees.status CHECK)
