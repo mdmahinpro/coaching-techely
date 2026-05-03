@@ -56,13 +56,13 @@ function OverviewTab() {
         .order('payment_date', { ascending: false })
         .limit(20),
       // Stats — all records, no join needed
-      supabase.from('fees').select('amount, final_amount, status, month'),
+      supabase.from('fees').select('amount, status, month'),
     ]).then(([{ data: displayData }, { data: statsData }]) => {
       setPayments(displayData ?? []);
       const all = statsData ?? [];
       setFeeStats({
         due: all.filter(p => p.month === THIS_MONTH).reduce((s, p) => s + (p.amount ?? 0), 0),
-        collected: all.filter(p => p.status === 'paid').reduce((s, p) => s + ((p.final_amount ?? p.amount) ?? 0), 0),
+        collected: all.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount ?? 0), 0),
         pending: all.filter(p => p.status === 'pending').reduce((s, p) => s + (p.amount ?? 0), 0),
         overdue: all.filter(p => p.status === 'overdue').length,
       });
