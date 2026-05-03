@@ -205,13 +205,15 @@ CREATE POLICY IF NOT EXISTS "Allow auth all notices"            ON notices      
 CREATE POLICY IF NOT EXISTS "Allow auth all admission_requests" ON admission_requests FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY IF NOT EXISTS "Allow auth all sms_logs"           ON sms_logs           FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Allow public read for public-facing data
-CREATE POLICY IF NOT EXISTS "Public read batches"    ON batches  FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read notices"    ON notices  FOR SELECT USING (is_public = true);
-CREATE POLICY IF NOT EXISTS "Public read exams"      ON exams    FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public insert admissions" ON admission_requests FOR INSERT WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "Public read students"   ON students FOR SELECT USING (true);
-CREATE POLICY IF NOT EXISTS "Public read fees"       ON fees     FOR SELECT USING (true);
+-- Allow public read only for non-sensitive public-facing data
+CREATE POLICY IF NOT EXISTS "Public read batches"      ON batches             FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public read notices"      ON notices             FOR SELECT USING (is_public = true);
+CREATE POLICY IF NOT EXISTS "Public read exams"        ON exams               FOR SELECT USING (true);
+CREATE POLICY IF NOT EXISTS "Public insert admissions" ON admission_requests  FOR INSERT  WITH CHECK (true);
+
+-- NOTE: students and fees contain personal/payment data.
+-- Do NOT add public SELECT policies for these tables.
+-- The full migration.sql (Step 2b) handles their access policies correctly.
 ```
 
 ### 2b — Apply the full migration
