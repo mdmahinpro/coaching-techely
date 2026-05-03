@@ -369,7 +369,7 @@ function RecordPaymentTab() {
       .select('*, batch:batches(name)')
       .eq('student_id', selectedStudent.id)
       .neq('status', 'paid')
-      .order('month', { ascending: false })
+      .order('due_date', { ascending: false })
       .then(({ data }) => { setUnpaidFees(data ?? []); });
   }, [selectedStudent]);
 

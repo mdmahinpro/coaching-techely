@@ -36,6 +36,12 @@ interface Question {
 const GRADE = (pct: number) => pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B' : pct >= 60 ? 'C' : pct >= 40 ? 'D' : 'F';
 const fmtTime = (s?: number) => !s ? '—' : `${Math.floor(s/60)}m ${s%60}s`;
 
+const parseAnswers = (raw: unknown): Record<string, string> => {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw as Record<string, string>;
+  try { return JSON.parse(raw as string); } catch { return {}; }
+};
+
 export default function PortalResultsPage() {
   const { student } = useStudentStore();
   const { settings } = useSettingsStore();
@@ -183,7 +189,9 @@ export default function PortalResultsPage() {
                   <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-sky-400" /></div>
                 ) : breakdown ? breakdown.questions.map((q, i) => {
                   // Normalise both to uppercase for comparison (DB stores lowercase, UI stores uppercase)
-                  const studentAns = breakdown.sub.answers?.[q.id]?.toUpperCase();
+                  // answers may be a raw JSON string (TEXT column) or already-parsed object (JSONB) — handle both
+                  const parsedAnswers = parseAnswers(breakdown.sub.answers as unknown);
+                  const studentAns = parsedAnswers[q.id]?.toUpperCase();
                   const correctOpt = q.correct_option.toUpperCase();
                   const isCorrect = !!studentAns && studentAns === correctOpt;
                   const opts: Record<string, string> = { A: q.option_a, B: q.option_b, C: q.option_c, D: q.option_d };

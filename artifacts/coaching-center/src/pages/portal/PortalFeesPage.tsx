@@ -26,7 +26,7 @@ export default function PortalFeesPage() {
   useEffect(() => {
     if (!student) return;
     supabase.from('fees').select('*').eq('student_id', student.id)
-      .order('month', { ascending: false })
+      .order('due_date', { ascending: false })
       .then(({ data }) => { setFees((data ?? []) as Fee[]); setLoading(false); });
   }, [student]);
 

@@ -62,10 +62,9 @@ function SendSMSTab() {
       let feeQuery = supabase.from('fees').select('student_id').eq('status', dueFilter === 'overdue' ? 'overdue' : 'pending');
       if (dueFilter === 'this_month') {
         const now = new Date();
-        const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-        const nextM = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        const monthEnd = `${nextM.getFullYear()}-${String(nextM.getMonth() + 1).padStart(2, '0')}-01`;
-        feeQuery = feeQuery.gte('due_month', monthStart).lt('due_month', monthEnd);
+        const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const monthStr = `${MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`;
+        feeQuery = feeQuery.eq('month', monthStr);
       }
       const { data: feeRows } = await feeQuery;
       const uniqueIds = new Set((feeRows ?? []).map((f: any) => f.student_id).filter(Boolean));
@@ -102,10 +101,9 @@ function SendSMSTab() {
       let feeQuery = supabase.from('fees').select('student_id').eq('status', dueFilter === 'overdue' ? 'overdue' : 'pending');
       if (dueFilter === 'this_month') {
         const now = new Date();
-        const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-        const nextM = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        const monthEnd = `${nextM.getFullYear()}-${String(nextM.getMonth() + 1).padStart(2, '0')}-01`;
-        feeQuery = feeQuery.gte('due_month', monthStart).lt('due_month', monthEnd);
+        const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const monthStr = `${MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`;
+        feeQuery = feeQuery.eq('month', monthStr);
       }
       const { data: feeRows } = await feeQuery;
       const studentIds = [...new Set((feeRows ?? []).map((f: any) => f.student_id).filter(Boolean))];
