@@ -119,10 +119,11 @@ function FeesTab() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data: fees } = await supabase.from('fees').select('amount,status,month,batch_id,batch:batches(name)');
+      const { data: fees } = await supabase.from('fees').select('amount,status,month,note,batch_id,batch:batches(name)');
       const list = fees ?? [];
 
-      const collected = list.filter(f => f.status === 'paid').reduce((s, f) => s + (f.amount ?? 0), 0);
+      const parseNote = (note?: string | null) => { try { return note ? JSON.parse(note) : {}; } catch { return {}; } };
+      const collected = list.filter(f => f.status === 'paid').reduce((s, f) => { const n = parseNote((f as any).note); return s + (n.final_amount ?? f.amount ?? 0); }, 0);
       const pending = list.filter(f => f.status === 'pending').reduce((s, f) => s + (f.amount ?? 0), 0);
       const overdue = list.filter(f => f.status === 'overdue').reduce((s, f) => s + (f.amount ?? 0), 0);
       setTotals({ collected, pending, overdue });
@@ -142,7 +143,7 @@ function FeesTab() {
       }
       list.forEach(f => {
         if (f.month && months[f.month]) {
-          if (f.status === 'paid') months[f.month].collected += f.amount ?? 0;
+          if (f.status === 'paid') { const n = parseNote((f as any).note); months[f.month].collected += n.final_amount ?? f.amount ?? 0; }
           else months[f.month].pending += f.amount ?? 0;
         }
       });
@@ -153,7 +154,7 @@ function FeesTab() {
       list.forEach(f => {
         const name = (f as any).batch?.name ?? 'No Batch';
         if (!byBatch[name]) byBatch[name] = { name, collected: 0, pending: 0 };
-        if (f.status === 'paid') byBatch[name].collected += f.amount ?? 0;
+        if (f.status === 'paid') { const n = parseNote((f as any).note); byBatch[name].collected += n.final_amount ?? f.amount ?? 0; }
         else byBatch[name].pending += f.amount ?? 0;
       });
       setBatchFees(Object.values(byBatch).sort((a, b) => b.collected - a.collected));

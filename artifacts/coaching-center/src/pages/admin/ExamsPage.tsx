@@ -484,7 +484,7 @@ function CreateExamTab({ batches, onDone }: { batches: any[]; onDone: () => void
   const [questions, setQuestions] = useState<Question[]>([]);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [savedExam, setSavedExam] = useState<{ id: string; title: string } | null>(null);
+  const [savedExam, setSavedExam] = useState<{ id: string; title: string; published?: boolean } | null>(null);
 
   const addQuestion = () => setQuestions(prev => [...prev, {
     id: mkId(), question_text: '', option_a: '', option_b: '', option_c: '', option_d: '',
@@ -501,6 +501,8 @@ function CreateExamTab({ batches, onDone }: { batches: any[]; onDone: () => void
   const handleSave = async (publish = false) => {
     if (!info.title || !info.subject || !info.exam_date) { toast.error('Fill in all required fields'); return; }
     setSaving(true);
+    const now = new Date();
+    const examStatus = publish ? 'active' : 'draft';
     const { data: exam, error: eErr } = await supabase.from('exams').insert([{
       title: info.title,
       subject: info.subject,
@@ -511,7 +513,9 @@ function CreateExamTab({ batches, onDone }: { batches: any[]; onDone: () => void
       pass_marks: info.pass_marks,
       total_marks: totalMarks,
       instructions: info.instructions,
-      status: 'draft',
+      status: examStatus,
+      start_time: publish ? now.toISOString() : null,
+      end_time: publish ? new Date(now.getTime() + info.duration_minutes * 60000).toISOString() : null,
       type: 'mcq',
     }]).select().single();
     if (eErr || !exam) { toast.error(eErr?.message ?? 'Save failed'); setSaving(false); return; }
@@ -530,8 +534,8 @@ function CreateExamTab({ batches, onDone }: { batches: any[]; onDone: () => void
       })));
     }
 
-    setSavedExam({ id: exam.id, title: exam.title });
-    toast.success('Exam saved!');
+    setSavedExam({ id: exam.id, title: exam.title, published: publish });
+    toast.success(publish ? 'Exam published and now live!' : 'Exam saved as draft!');
     setSaving(false);
   };
 
@@ -541,7 +545,7 @@ function CreateExamTab({ batches, onDone }: { batches: any[]; onDone: () => void
       <div className="max-w-md mx-auto mt-10 card p-8 text-center space-y-4">
         <CheckCircle2 size={40} className="text-emerald-400 mx-auto" />
         <h3 className="font-inter font-bold text-xl text-white">{savedExam.title}</h3>
-        <p className="text-slate-400 text-sm">Exam saved as Draft. Use the Timer from All Exams tab to activate it.</p>
+        <p className="text-slate-400 text-sm">{savedExam.published ? 'Exam is now live — students can join immediately.' : 'Exam saved as Draft. Use the Timer from All Exams tab to activate it.'}</p>
         <div className="card p-3 text-left">
           <p className="text-xs text-slate-500 mb-1">Share Link</p>
           <p className="font-mono text-sky-400 text-xs break-all">{link}</p>
