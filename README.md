@@ -1,9 +1,9 @@
 # Coaching Center Management System
 ### Techely Learning Academy
 
-![React](https://img.shields.io/badge/React-18-61dafb?logo=react&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-5-646cff?logo=vite&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-7-646cff?logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06b6d4?logo=tailwindcss&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL_Auth-3ecf8e?logo=supabase&logoColor=white)
 
@@ -687,8 +687,8 @@ No GitHub secrets are needed for CI to pass. If your CI check fails after a push
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 18 + TypeScript |
-| Build tool | Vite |
+| Frontend | React 19 + TypeScript 5 |
+| Build tool | Vite 7 |
 | Styling | Tailwind CSS v4 — glassmorphism, dark navy + sky blue |
 | Routing | React Router DOM v7 |
 | State | Zustand |
