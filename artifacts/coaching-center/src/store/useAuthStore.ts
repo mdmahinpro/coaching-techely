@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
-import type { User, Session } from '@supabase/supabase-js';
+import type { User, Session, Subscription } from '@supabase/supabase-js';
+
+let authSubscription: Subscription | null = null;
 
 type Role = 'admin' | 'student' | null;
 
@@ -33,7 +35,12 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: null, session: null, role: null, loading: false, initialized: true });
     }
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    // Unsubscribe any existing listener before creating a new one
+    if (authSubscription) {
+      authSubscription.unsubscribe();
+      authSubscription = null;
+    }
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         const role = session.user.user_metadata?.role as Role ?? null;
         set({ user: session.user, session, role });
@@ -41,6 +48,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: null, session: null, role: null });
       }
     });
+    authSubscription = data.subscription;
   },
 
   signIn: async (email: string, password: string) => {

@@ -136,10 +136,26 @@ export default function BackupPage() {
     if (!restoreData?.tables) return;
     setRestoring(true);
     let totalRestored = 0;
+    // Process in FK-safe order: parents before children
+    const RESTORE_ORDER = [
+      'site_settings', 'batches', 'teachers', 'students',
+      'fees', 'notices', 'exams', 'mcq_questions',
+      'mcq_submissions', 'sms_logs', 'admission_requests',
+    ];
+    const processed = new Set<string>();
+    for (const tableName of RESTORE_ORDER) {
+      const rows = (restoreData.tables as any)[tableName];
+      if (!Array.isArray(rows) || rows.length === 0) { processed.add(tableName); continue; }
+      const { error } = await supabase.from(tableName as any).upsert(rows as any[], { onConflict: 'id', ignoreDuplicates: false });
+      if (!error) totalRestored += rows.length;
+      processed.add(tableName);
+    }
+    // Handle any extra tables not in the known order
     for (const [table, rows] of Object.entries(restoreData.tables)) {
+      if (processed.has(table)) continue;
       if (!Array.isArray(rows) || rows.length === 0) continue;
       const { error } = await supabase.from(table as any).upsert(rows as any[], { onConflict: 'id', ignoreDuplicates: false });
-      if (!error) totalRestored += rows.length;
+      if (!error) totalRestored += (rows as any[]).length;
     }
     toast.success(`✅ Restore complete! ${totalRestored} records restored`);
     setRestoring(false);

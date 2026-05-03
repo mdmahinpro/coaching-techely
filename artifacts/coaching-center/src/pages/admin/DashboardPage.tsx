@@ -57,7 +57,7 @@ export default function DashboardPage() {
 
     const [
       studentRes, monthPaidRes, pendingRes, activeExamRes,
-      admissionsRes, examsRes, allFeesRes, studentsForDueRes,
+      admissionsRes, examsRes, allFeesRes,
     ] = await Promise.all([
       supabase.from('students').select('id,created_at', { count: 'exact' }),
       supabase.from('fees').select('amount').eq('status', 'paid').gte('payment_date', monthStart).lte('payment_date', monthEnd),
@@ -66,7 +66,6 @@ export default function DashboardPage() {
       supabase.from('admission_requests').select('id,name,guardian_name,created_at,batch_id').eq('status', 'pending').order('created_at', { ascending: false }).limit(5),
       supabase.from('exams').select('id,title,batch_id,exam_date,status').eq('status', 'active').limit(5),
       supabase.from('fees').select('status,amount'),
-      supabase.from('students').select('id,name').limit(50),
     ]);
 
     const monthCollected = (monthPaidRes.data ?? []).reduce((s: number, r: any) => s + (r.amount ?? 0), 0);
@@ -107,8 +106,13 @@ export default function DashboardPage() {
       studentDues[f.student_id].total += f.amount ?? 0;
     });
     const overdueIds = Object.entries(studentDues).filter(([, v]) => v.count >= 2).slice(0, 5).map(([id, v]) => ({ id, ...v }));
+
+    // Fetch names only for the specific overdue students (avoids the old limit(50) which missed most students)
     const studentMap: Record<string, string> = {};
-    (studentsForDueRes.data ?? []).forEach((s: any) => { studentMap[s.id] = s.name; });
+    if (overdueIds.length > 0) {
+      const { data: overdueStudents } = await supabase.from('students').select('id,name').in('id', overdueIds.map(d => d.id));
+      (overdueStudents ?? []).forEach((s: any) => { studentMap[s.id] = s.name; });
+    }
     setFeeDues(overdueIds.map(d => ({ ...d, name: studentMap[d.id] ?? 'Unknown' })));
     setLoading(false);
   };

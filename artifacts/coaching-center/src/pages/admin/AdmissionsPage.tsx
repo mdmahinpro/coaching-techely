@@ -31,8 +31,15 @@ const generateStudentId = async (): Promise<string> => {
   const { data } = await supabase.from('students').select('student_id').ilike('student_id', `CF${year}%`)
     .order('student_id', { ascending: false }).limit(1);
   const last = data?.[0]?.student_id;
-  const seq = last ? parseInt(last.slice(-4)) + 1 : 1;
-  return `CF${year}${String(seq).padStart(4, '0')}`;
+  let seq = last ? parseInt(last.slice(-4)) + 1 : 1;
+  // Verify uniqueness and increment if there is a collision
+  let candidate = `CF${year}${String(seq).padStart(4, '0')}`;
+  const { data: existing } = await supabase.from('students').select('id').eq('student_id', candidate).maybeSingle();
+  if (existing) {
+    seq += 1;
+    candidate = `CF${year}${String(seq).padStart(4, '0')}`;
+  }
+  return candidate;
 };
 
 export default function AdmissionsPage() {

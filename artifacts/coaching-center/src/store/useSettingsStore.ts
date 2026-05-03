@@ -152,7 +152,8 @@ export const useSettingsStore = create<SettingsState>()(
         }));
 
         /* Batch upsert in one call */
-        await supabase.from('site_settings').upsert(entries, { onConflict: 'key' });
+        const { error } = await supabase.from('site_settings').upsert(entries, { onConflict: 'key' });
+        if (error) throw new Error(error.message);
       },
     }),
     { name: 'coaching-center-settings' }

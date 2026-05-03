@@ -118,6 +118,8 @@ export default function StudentsPage() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    // Remove exam submissions before deleting the student to avoid orphaned records
+    await supabase.from('mcq_submissions').delete().eq('student_id', deleteTarget.id);
     const { error } = await supabase.from('students').delete().eq('id', deleteTarget.id);
     if (error) { toast.error('Delete failed'); return; }
     // Decrement enrolled count for the student's batch

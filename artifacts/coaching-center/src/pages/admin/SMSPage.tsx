@@ -436,16 +436,17 @@ function SMSSettingsTab() {
   const [testing, setSending] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
     updateSettings({ smsApiKey: apiKey, smsSenderId: senderId });
-    // Persist to DB
     const upserts = [
-      { key: 'mimsms_api_key', value: apiKey },
-      { key: 'mimsms_sender_id', value: senderId },
+      { key: 'sms_api_key', value: apiKey },
+      { key: 'sms_sender_id', value: senderId },
     ];
-    supabase.from('site_settings').upsert(upserts, { onConflict: 'key' })
-      .then(() => { toast.success('SMS settings saved'); setSaving(false); });
+    const { error } = await supabase.from('site_settings').upsert(upserts, { onConflict: 'key' });
+    setSaving(false);
+    if (error) { toast.error('Failed to save: ' + error.message); return; }
+    toast.success('SMS settings saved');
   };
 
   const handleTest = async () => {

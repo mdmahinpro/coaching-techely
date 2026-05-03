@@ -69,9 +69,14 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     updateSettings(form);
-    await saveToDB(form);
-    setSaving(false);
-    toast.success('✅ সেটিংস সংরক্ষিত হয়েছে');
+    try {
+      await saveToDB(form);
+      toast.success('✅ সেটিংস সংরক্ষিত হয়েছে');
+    } catch (err: any) {
+      toast.error('সংরক্ষণ ব্যর্থ: ' + (err?.message ?? 'Unknown error'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleTestSMS = async () => {

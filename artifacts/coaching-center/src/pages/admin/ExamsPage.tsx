@@ -299,6 +299,7 @@ function AllExamsTab({ onTabChange }: { onTabChange: (t: Tab) => void }) {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
+    await supabase.from('mcq_submissions').delete().eq('exam_id', deleteTarget.id);
     await supabase.from('mcq_questions').delete().eq('exam_id', deleteTarget.id);
     await supabase.from('exams').delete().eq('id', deleteTarget.id);
     toast.success('Exam deleted');
