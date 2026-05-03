@@ -25,7 +25,7 @@ export default function PortalProfilePage() {
       const objectUrl = URL.createObjectURL(file);
       img.onload = () => {
         URL.revokeObjectURL(objectUrl);
-        const MAX = 600;
+        const MAX = 400;
         let { width, height } = img;
         if (width > MAX || height > MAX) {
           if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
@@ -33,7 +33,7 @@ export default function PortalProfilePage() {
         }
         canvas.width = width; canvas.height = height;
         canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.95);
+        canvas.toBlob(b => resolve(b!), 'image/jpeg', 0.75);
       };
       img.onerror = () => { URL.revokeObjectURL(objectUrl); };
       img.src = objectUrl;
