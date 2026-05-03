@@ -396,12 +396,36 @@ export default function ExamPage() {
 
   // ── Render: Ended ─────────────────────────────────────────────────────────
   if (step === 'ended') {
+    // exam is null  → the exam ID doesn't exist at all
+    // exam is set   → exam exists but its status is 'ended'
+    const isNotFound = !exam;
     return (
       <div className="min-h-screen bg-navy-900 flex items-center justify-center p-4">
-        <div className="card p-10 max-w-sm w-full text-center">
-          <AlertTriangle size={40} className="text-red-400 mx-auto mb-4" />
-          <h2 className="font-inter font-bold text-2xl text-white mb-2">পরীক্ষার সময় শেষ হয়েছে</h2>
-          <p className="text-slate-400">{exam?.title}</p>
+        <div className="card p-10 max-w-sm w-full text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-red-400/10 flex items-center justify-center mx-auto">
+            <AlertTriangle size={32} className="text-red-400" />
+          </div>
+
+          {isNotFound ? (
+            <>
+              <h2 className="font-inter font-bold text-xl text-white">পরীক্ষাটি পাওয়া যায়নি</h2>
+              <p className="text-slate-400 text-sm">এই লিঙ্কটি সঠিক নয় অথবা পরীক্ষাটি মুছে ফেলা হয়েছে।</p>
+            </>
+          ) : (
+            <>
+              <h2 className="font-inter font-bold text-xl text-white">পরীক্ষা শেষ হয়ে গেছে</h2>
+              <div className="space-y-1">
+                <p className="text-white font-semibold font-hind">{exam.title}</p>
+                {exam.subject && <p className="text-slate-400 text-sm">{exam.subject}</p>}
+              </div>
+              <p className="text-slate-500 text-sm">এই পরীক্ষার সময় শেষ হয়েছে। আর যোগ দেওয়া সম্ভব নয়।</p>
+            </>
+          )}
+
+          <div className="flex gap-3 pt-2 justify-center">
+            <a href="/portal/exams" className="btn-outline text-sm py-2 px-4">পোর্টালে যান</a>
+            <a href="/" className="btn-primary text-sm py-2 px-4">হোমে যান</a>
+          </div>
         </div>
       </div>
     );
@@ -534,21 +558,14 @@ export default function ExamPage() {
           {/* Progress bar */}
           <div className="max-w-3xl mx-auto mt-2">
             <div className="h-1 bg-navy-700 rounded-full overflow-hidden">
-              <motion.div className="h-full bg-sky-400 rounded-full" animate={{ width: `${progress}%` }} transition={{ duration: 0.3 }} />
+              <div className="h-full bg-sky-400 rounded-full" style={{ width: `${progress}%`, transition: 'width 0.3s ease' }} />
             </div>
           </div>
         </div>
 
         {/* Question Area */}
         <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-6 space-y-5">
-          <AnimatePresence mode="wait">
-            <motion.div key={q.id}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-4"
-            >
+          <div key={q.id} className="space-y-4">
               {/* Question */}
               <div className="card p-5">
                 <div className="flex items-start justify-between gap-3 mb-4">
@@ -628,8 +645,7 @@ export default function ExamPage() {
                   {answeredCount}/{questions.length} উত্তর দেওয়া হয়েছে
                 </p>
               </div>
-            </motion.div>
-          </AnimatePresence>
+          </div>
         </div>
 
         {/* Submit confirm modal */}
