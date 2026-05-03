@@ -269,13 +269,14 @@ export default function ExamPage() {
   }, [step]);
 
   // ── Auto-save every 10 seconds ────────────────────────────────────────────
+  // Use answersRef (always current) so the interval doesn't restart on every keystroke
   useEffect(() => {
     if (step !== 'exam') return;
     autoSaveRef.current = setInterval(() => {
-      localStorage.setItem(`exam-answers-${examId}-${student?.id}`, JSON.stringify(answers));
+      localStorage.setItem(`exam-answers-${examId}-${student?.id}`, JSON.stringify(answersRef.current));
     }, 10000);
     return () => { if (autoSaveRef.current) clearInterval(autoSaveRef.current); };
-  }, [step, answers, examId, student?.id]);
+  }, [step, examId, student?.id]);
 
   // ── Keep answersRef in sync ────────────────────────────────────────────────
   useEffect(() => { answersRef.current = answers; }, [answers]);

@@ -113,6 +113,9 @@ export default function BatchesPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
+    // Null out batch_id on students and exams in this batch first to avoid orphaned references
+    await supabase.from('students').update({ batch_id: null }).eq('batch_id', deleteTarget.id);
+    await supabase.from('exams').update({ batch_id: null }).eq('batch_id', deleteTarget.id);
     const { error } = await supabase.from('batches').delete().eq('id', deleteTarget.id);
     if (error) { toast.error(error.message); setDeleting(false); return; }
     toast.success('Batch deleted');

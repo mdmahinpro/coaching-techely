@@ -55,14 +55,18 @@ function OverviewTab() {
         .select('*, student:students(name, student_id, photo_url), batch:batches(name)')
         .order('payment_date', { ascending: false })
         .limit(20),
-      // Stats — all records, no join needed
-      supabase.from('fees').select('amount, status, month'),
+      // Stats — all records, include note so we can use final_amount for collected
+      supabase.from('fees').select('amount, status, month, note'),
     ]).then(([{ data: displayData }, { data: statsData }]) => {
       setPayments(displayData ?? []);
       const all = statsData ?? [];
+      const parseNote = (n: string | null) => { try { return JSON.parse(n || '{}'); } catch { return {}; } };
       setFeeStats({
         due: all.filter(p => p.month === THIS_MONTH).reduce((s, p) => s + (p.amount ?? 0), 0),
-        collected: all.filter(p => p.status === 'paid').reduce((s, p) => s + (p.amount ?? 0), 0),
+        collected: all.filter(p => p.status === 'paid').reduce((s, p) => {
+          const meta = parseNote(p.note);
+          return s + (meta.final_amount ?? p.amount ?? 0);
+        }, 0),
         pending: all.filter(p => p.status === 'pending').reduce((s, p) => s + (p.amount ?? 0), 0),
         overdue: all.filter(p => p.status === 'overdue').length,
       });
