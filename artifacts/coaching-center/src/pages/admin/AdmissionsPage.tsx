@@ -32,14 +32,15 @@ const generateStudentId = async (): Promise<string> => {
     .order('student_id', { ascending: false }).limit(1);
   const last = data?.[0]?.student_id;
   let seq = last ? parseInt(last.slice(-4)) + 1 : 1;
-  // Verify uniqueness and increment if there is a collision
-  let candidate = `CF${year}${String(seq).padStart(4, '0')}`;
-  const { data: existing } = await supabase.from('students').select('id').eq('student_id', candidate).maybeSingle();
-  if (existing) {
+  // Loop until a unique candidate is found (guards against concurrent approvals)
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = `CF${year}${String(seq).padStart(4, '0')}`;
+    const { data: existing } = await supabase.from('students').select('id').eq('student_id', candidate).maybeSingle();
+    if (!existing) return candidate;
     seq += 1;
-    candidate = `CF${year}${String(seq).padStart(4, '0')}`;
   }
-  return candidate;
+  // Fallback: timestamp-based unique suffix
+  return `CF${year}${Date.now().toString().slice(-4)}`;
 };
 
 export default function AdmissionsPage() {

@@ -46,8 +46,6 @@ function SendSMSTab() {
   const [sending, setSending] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
-  const msgRef = { current: message };
-
   useEffect(() => {
     supabase.from('batches').select('id,name').eq('is_active', true)
       .then(({ data }) => setBatches(data ?? []));

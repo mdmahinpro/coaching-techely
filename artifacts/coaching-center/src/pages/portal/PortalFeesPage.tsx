@@ -30,15 +30,15 @@ export default function PortalFeesPage() {
       .then(({ data }) => { setFees((data ?? []) as Fee[]); setLoading(false); });
   }, [student]);
 
+  const parseNote = (note?: string) => {
+    if (!note) return {} as Record<string, any>;
+    try { return JSON.parse(note) as Record<string, any>; } catch { return {} as Record<string, any>; }
+  };
+
   const paid = fees.filter(f => f.status === 'paid');
   const pending = fees.filter(f => f.status === 'pending' || f.status === 'overdue');
-  const totalPaid = paid.reduce((s, f) => s + f.amount, 0);
+  const totalPaid = paid.reduce((s, f) => { const n = parseNote(f.note); return s + (n.final_amount ?? f.amount); }, 0);
   const totalPending = pending.reduce((s, f) => s + f.amount, 0);
-
-  const parseNote = (note?: string) => {
-    if (!note) return {};
-    try { return JSON.parse(note); } catch { return {}; }
-  };
 
   const downloadReceipt = (fee: Fee) => {
     const note = parseNote(fee.note);

@@ -134,7 +134,8 @@ export default function TeachersPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    await supabase.from('teachers').delete().eq('id', deleteTarget.id);
+    const { error } = await supabase.from('teachers').delete().eq('id', deleteTarget.id);
+    if (error) { toast.error(error.message); setDeleting(false); return; }
     toast.success('Teacher removed');
     setDeleteTarget(null);
     setDeleting(false);

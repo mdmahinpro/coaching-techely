@@ -3,7 +3,7 @@ import { PortalLayout } from '@/components/portal/PortalLayout';
 import { supabase } from '@/lib/supabase';
 import { useStudentStore } from '@/store/useStudentStore';
 import { formatDate, cn } from '@/lib/utils';
-import { ClipboardList, Clock, Trophy, PlayCircle, Loader2, ChevronRight } from 'lucide-react';
+import { ClipboardList, Clock, Trophy, PlayCircle, Loader2, ChevronRight, PauseCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
@@ -126,7 +126,8 @@ export default function PortalExamsPage() {
     load();
   }, [student]);
 
-  const active = exams.filter(e => e.status === 'active' || e.status === 'paused');
+  const active = exams.filter(e => e.status === 'active');
+  const paused = exams.filter(e => e.status === 'paused');
   const upcoming = exams.filter(e => e.status === 'draft');
   const ended = exams.filter(e => e.status === 'ended');
 
@@ -149,6 +150,16 @@ export default function PortalExamsPage() {
               </h2>
               <div className="space-y-3">
                 {active.map(e => <ExamCard key={e.id} exam={e} myResult={myResults[e.id]} />)}
+              </div>
+            </section>
+          )}
+          {paused.length > 0 && (
+            <section>
+              <h2 className="text-amber-400 text-sm font-semibold mb-3 flex items-center gap-2">
+                <PauseCircle size={13} /> সাময়িক বিরতি
+              </h2>
+              <div className="space-y-3">
+                {paused.map(e => <ExamCard key={e.id} exam={e} myResult={myResults[e.id]} />)}
               </div>
             </section>
           )}

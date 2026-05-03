@@ -274,7 +274,7 @@ export default function ExamPage() {
 
     const rank = (higherCount ?? 0) + 1;
 
-    const { data: sub } = await supabase.from('mcq_submissions').insert([{
+    const { data: sub, error: insertErr } = await supabase.from('mcq_submissions').insert([{
       exam_id: examId,
       student_id: student?.id,
       answers: JSON.stringify(answers),
@@ -285,6 +285,21 @@ export default function ExamPage() {
       rank,
       submitted_at: new Date().toISOString(),
     }]).select().single();
+
+    if (insertErr) {
+      toast.error('জমা দিতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      setSubmitting(false);
+      // Restart timers so student can retry
+      if (exam?.timer_enabled !== false && remainingSecs > 0) {
+        timerRef.current = setInterval(() => {
+          setRemainingSecs(prev => {
+            if (prev <= 1) { clearInterval(timerRef.current!); handleSubmitRef.current(true); return 0; }
+            return prev - 1;
+          });
+        }, 1000);
+      }
+      return;
+    }
 
     // Clear localStorage
     localStorage.removeItem(`exam-answers-${examId}-${student?.id}`);
