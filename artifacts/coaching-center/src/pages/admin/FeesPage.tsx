@@ -16,8 +16,6 @@ import { generateReceipt } from '@/lib/pdf';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const now = new Date();
-const THIS_MONTH = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`;
-const LAST_MONTH = `${MONTHS[now.getMonth() === 0 ? 11 : now.getMonth() - 1]} ${now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()}`;
 
 type Tab = 'overview' | 'generate' | 'record' | 'due';
 const TABS: { id: Tab; label: string }[] = [

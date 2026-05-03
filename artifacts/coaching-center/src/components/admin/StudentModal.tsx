@@ -56,7 +56,7 @@ async function compressImage(file: File): Promise<Blob> {
       };
       attempt();
     };
-    img.onerror = reject;
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
     img.src = url;
   });
 }
@@ -164,7 +164,7 @@ export function StudentModal({ open, student, batches = [], onSave, onClose }: P
         const { error: storErr } = await supabase.storage.from('avatars').upload(path, compressed, { upsert: true, contentType: 'image/jpeg' });
         if (!storErr) {
           const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
-          photo_url = urlData.publicUrl;
+          photo_url = `${urlData.publicUrl}?t=${Date.now()}`;
         }
       } catch {
         // Photo upload failed — continue without photo
