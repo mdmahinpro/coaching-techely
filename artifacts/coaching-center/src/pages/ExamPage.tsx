@@ -6,7 +6,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Clock, CheckCircle2, XCircle, Loader2, BookOpen, AlertTriangle, Trophy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, CheckCircle2, XCircle, Loader2, BookOpen, AlertTriangle, Trophy, EyeOff, LayoutDashboard } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ExamData {
@@ -49,9 +49,9 @@ interface Submission {
 type Step = 'loading' | 'verify' | 'instructions' | 'exam' | 'result' | 'already-submitted' | 'ended';
 
 const OPTS = ['A', 'B', 'C', 'D'] as const;
+const MAX_TAB_LEAVES = 3;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-/** Safely parse answers whether the JSONB column returns an object or a string */
 const parseAnswers = (raw: unknown): Record<string, string> => {
   if (!raw) return {};
   if (typeof raw === 'object') return raw as Record<string, string>;
@@ -87,17 +87,17 @@ export default function ExamPage() {
   const [submitting, setSubmitting] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Ref always pointing at the latest handleSubmit to avoid stale closures in timer/realtime
   const handleSubmitRef = useRef<(auto?: boolean) => Promise<void>>(async () => {});
-  // Synchronous guard against double-submission (timer + realtime may fire before React re-renders)
   const submittingRef = useRef(false);
-  // Ref kept in sync with latest answers for use in beforeunload without stale closures
   const answersRef = useRef<Record<string, string>>({});
+
+  // Tab leave tracking
+  const [tabLeaves, setTabLeaves] = useState(0);
+  const tabLeavesRef = useRef(0);
 
   // Result step
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [showBreakdown, setShowBreakdown] = useState(false);
 
   // ── Load exam ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -110,21 +110,16 @@ export default function ExamPage() {
     ]).then(async ([{ data: e }, { data: q }]) => {
       if (!e) { setStep('ended'); return; }
       setExam(e as ExamData);
-      // Normalise correct_option to uppercase (DB stores a/b/c/d)
       const normalised = (q ?? []).map((qq: any) => ({
         ...qq,
-        correct_option: (qq.correct_option as string).toUpperCase() as 'A'|'B'|'C'|'D',
+        correct_option: (qq.correct_option as string).toUpperCase() as 'A' | 'B' | 'C' | 'D',
       }));
       setQuestions(normalised as Question[]);
 
-      // If the exam is ended, still allow viewing if student submitted
-      // (will be handled below). If no session and ended, show ended screen.
       if (e.status === 'ended' && !sessionStudent) { setStep('ended'); return; }
 
-      // Auto-login from portal session
       if (sessionStudent) {
         setStudent(sessionStudent);
-        // Check already submitted
         const { data: existing } = await supabase.from('mcq_submissions')
           .select('*').eq('exam_id', examId).eq('student_id', sessionStudent.id).single();
         if (existing) {
@@ -135,7 +130,6 @@ export default function ExamPage() {
         }
         if (e.status === 'ended') { setStep('ended'); return; }
 
-        // Try to resume in-progress exam from localStorage
         const saved = localStorage.getItem(`exam-answers-${examId}-${sessionStudent.id}`);
         if (saved) {
           try {
@@ -147,9 +141,8 @@ export default function ExamPage() {
             setRemainingSecs(secs);
             setStep('exam');
             return;
-          } catch { /* ignore, fall through to instructions */ }
+          } catch { /* fall through */ }
         }
-
         setStep('instructions');
         return;
       }
@@ -174,13 +167,42 @@ export default function ExamPage() {
     return () => { supabase.removeChannel(ch); };
   }, [examId, step]);
 
+  // ── Tab visibility tracking ────────────────────────────────────────────────
+  useEffect(() => {
+    if (step !== 'exam') return;
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        const newCount = tabLeavesRef.current + 1;
+        tabLeavesRef.current = newCount;
+        setTabLeaves(newCount);
+
+        // Save immediately
+        localStorage.setItem(`exam-answers-${examId}-${student?.id}`, JSON.stringify(answersRef.current));
+
+        if (newCount >= MAX_TAB_LEAVES) {
+          toast.error(`আপনি ${MAX_TAB_LEAVES} বার ট্যাব ছেড়েছেন। পরীক্ষা স্বয়ংক্রিয়ভাবে জমা হচ্ছে!`, { duration: 5000 });
+          setTimeout(() => handleSubmitRef.current(true), 800);
+        } else {
+          const remaining = MAX_TAB_LEAVES - newCount;
+          toast.error(
+            `⚠ আপনি অন্য ট্যাবে গেছেন! (${newCount}/${MAX_TAB_LEAVES}) — আরও ${remaining} বার গেলে পরীক্ষা জমা হয়ে যাবে।`,
+            { duration: 4000, id: 'tab-warning' }
+          );
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [step, examId, student?.id]);
+
   // ── Verify Student ────────────────────────────────────────────────────────
   const handleVerify = async () => {
     if (!studentIdInput.trim()) return;
     setVerifying(true);
     setVerifyError('');
 
-    // Check student
     const { data: s } = await supabase.from('students').select('*')
       .ilike('student_id', studentIdInput.trim()).single();
 
@@ -194,13 +216,11 @@ export default function ExamPage() {
       setVerifying(false); return;
     }
 
-    // Re-fetch current exam status to avoid using a stale locally-cached value
     const { data: freshExam } = await supabase.from('exams').select('status').eq('id', examId).single();
     if (freshExam?.status === 'ended' || freshExam?.status === 'cancelled') {
       setStep('ended'); setVerifying(false); return;
     }
 
-    // Check already submitted
     const { data: existing } = await supabase.from('mcq_submissions')
       .select('*').eq('exam_id', examId).eq('student_id', s.id).single();
 
@@ -213,7 +233,6 @@ export default function ExamPage() {
       return;
     }
 
-    // Try to resume in-progress exam from localStorage
     const saved = localStorage.getItem(`exam-answers-${examId}-${s.id}`);
     if (saved) {
       try {
@@ -227,7 +246,7 @@ export default function ExamPage() {
         setVerifying(false);
         setStep('exam');
         return;
-      } catch { /* ignore, fall through to instructions */ }
+      } catch { /* fall through */ }
     }
 
     setStudent(s);
@@ -237,19 +256,16 @@ export default function ExamPage() {
 
   // ── Start Exam ────────────────────────────────────────────────────────────
   const startExam = () => {
-    // Restore from localStorage
     const saved = localStorage.getItem(`exam-answers-${examId}-${student?.id}`);
     if (saved) {
       try { setAnswers(JSON.parse(saved)); } catch { /* ignore */ }
     }
 
-    // Compute remaining seconds
     let secs = (exam?.duration_minutes ?? 30) * 60;
     if (exam?.timer_enabled !== false && exam?.end_time) {
       secs = Math.max(0, Math.floor((new Date(exam.end_time).getTime() - Date.now()) / 1000));
     }
     setRemainingSecs(secs);
-
     setStep('exam');
   };
 
@@ -274,7 +290,6 @@ export default function ExamPage() {
   }, [step]);
 
   // ── Auto-save every 10 seconds ────────────────────────────────────────────
-  // Use answersRef (always current) so the interval doesn't restart on every keystroke
   useEffect(() => {
     if (step !== 'exam') return;
     autoSaveRef.current = setInterval(() => {
@@ -283,14 +298,14 @@ export default function ExamPage() {
     return () => { if (autoSaveRef.current) clearInterval(autoSaveRef.current); };
   }, [step, examId, student?.id]);
 
-  // ── Keep answersRef in sync ────────────────────────────────────────────────
+  // ── Keep refs in sync ─────────────────────────────────────────────────────
   useEffect(() => { answersRef.current = answers; }, [answers]);
+  useEffect(() => { tabLeavesRef.current = tabLeaves; }, [tabLeaves]);
 
   // ── Warn before tab close / navigation during exam ────────────────────────
   useEffect(() => {
     if (step !== 'exam') return;
     const handler = (e: BeforeUnloadEvent) => {
-      // Flush latest answers immediately so nothing is lost beyond the 10s interval
       localStorage.setItem(`exam-answers-${examId}-${student?.id}`, JSON.stringify(answersRef.current));
       e.preventDefault();
       e.returnValue = '';
@@ -312,10 +327,11 @@ export default function ExamPage() {
     setSubmitting(true);
     setSubmitOpen(false);
 
-    // Grade
+    const currentAnswers = answersRef.current;
+
     let correct = 0, wrong = 0, score = 0;
     for (const q of questions) {
-      const ans = answers[q.id];
+      const ans = currentAnswers[q.id];
       if (!ans) continue;
       if (ans === q.correct_option) { correct++; score += q.marks; }
       else wrong++;
@@ -324,7 +340,6 @@ export default function ExamPage() {
     const totalSecs = (exam?.duration_minutes ?? 30) * 60;
     const timeTaken = exam?.timer_enabled === false ? 0 : totalSecs - remainingSecs;
 
-    // Get existing submission count for rank
     const { count: higherCount } = await supabase.from('mcq_submissions')
       .select('*', { count: 'exact', head: true })
       .eq('exam_id', examId!)
@@ -332,10 +347,13 @@ export default function ExamPage() {
 
     const rank = (higherCount ?? 0) + 1;
 
+    // Store tab_leaves in answers under a special key so admin can see it
+    const answersWithMeta = { ...currentAnswers, __tab_leaves: String(tabLeavesRef.current) };
+
     const { data: sub, error: insertErr } = await supabase.from('mcq_submissions').insert([{
       exam_id: examId,
       student_id: student?.id,
-      answers: JSON.stringify(answers),
+      answers: JSON.stringify(answersWithMeta),
       score,
       correct_count: correct,
       wrong_count: wrong,
@@ -360,16 +378,13 @@ export default function ExamPage() {
       return;
     }
 
-    // Clear localStorage
     localStorage.removeItem(`exam-answers-${examId}-${student?.id}`);
-
     setSubmission(sub as Submission);
     setSubmitting(false);
     await loadLeaderboard();
     setStep('result');
-  }, [questions, answers, exam, examId, student, remainingSecs, submitting]);
+  }, [questions, exam, examId, student, remainingSecs]);
 
-  // Keep ref in sync so timer/realtime callbacks always call the freshest version
   useEffect(() => { handleSubmitRef.current = handleSubmit; }, [handleSubmit]);
 
   const loadLeaderboard = async () => {
@@ -388,7 +403,7 @@ export default function ExamPage() {
   // ── Render: Loading ───────────────────────────────────────────────────────
   if (step === 'loading') {
     return (
-      <div className="min-h-screen bg-navy-900 flex items-center justify-center">
+      <div className="h-screen bg-navy-900 flex items-center justify-center">
         <Loader2 size={32} className="text-sky-400 animate-spin" />
       </div>
     );
@@ -396,16 +411,13 @@ export default function ExamPage() {
 
   // ── Render: Ended ─────────────────────────────────────────────────────────
   if (step === 'ended') {
-    // exam is null  → the exam ID doesn't exist at all
-    // exam is set   → exam exists but its status is 'ended'
     const isNotFound = !exam;
     return (
-      <div className="min-h-screen bg-navy-900 flex items-center justify-center p-4">
+      <div className="h-screen bg-navy-900 flex items-center justify-center p-4">
         <div className="card p-10 max-w-sm w-full text-center space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-red-400/10 flex items-center justify-center mx-auto">
             <AlertTriangle size={32} className="text-red-400" />
           </div>
-
           {isNotFound ? (
             <>
               <h2 className="font-inter font-bold text-xl text-white">পরীক্ষাটি পাওয়া যায়নি</h2>
@@ -421,7 +433,6 @@ export default function ExamPage() {
               <p className="text-slate-500 text-sm">এই পরীক্ষার সময় শেষ হয়েছে। আর যোগ দেওয়া সম্ভব নয়।</p>
             </>
           )}
-
           <div className="flex gap-3 pt-2 justify-center">
             <a href="/portal/exams" className="btn-outline text-sm py-2 px-4">পোর্টালে যান</a>
             <a href="/" className="btn-primary text-sm py-2 px-4">হোমে যান</a>
@@ -434,7 +445,7 @@ export default function ExamPage() {
   // ── Render: Verify ────────────────────────────────────────────────────────
   if (step === 'verify') {
     return (
-      <div className="min-h-screen bg-navy-900 flex items-center justify-center p-4">
+      <div className="h-screen bg-navy-900 flex items-center justify-center p-4 overflow-hidden">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card-glass p-8 max-w-sm w-full">
           <div className="text-center mb-6">
             <div className="w-12 h-12 rounded-2xl bg-sky-500/15 flex items-center justify-center mx-auto mb-4">
@@ -474,9 +485,13 @@ export default function ExamPage() {
   // ── Render: Instructions ──────────────────────────────────────────────────
   if (step === 'instructions') {
     return (
-      <div className="min-h-screen bg-navy-900 flex items-center justify-center p-4">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card-glass p-8 max-w-md w-full">
-          <h1 className="font-inter font-black text-2xl text-white mb-1">{exam?.title}</h1>
+      <div className="h-screen bg-navy-900 flex items-center justify-center p-4 overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card-glass p-6 max-w-md w-full max-h-[90dvh] overflow-y-auto"
+        >
+          <h1 className="font-inter font-black text-xl text-white mb-1">{exam?.title}</h1>
           <div className="flex flex-wrap gap-2 mb-4">
             <span className="badge-blue">{exam?.subject}</span>
             <span className="badge-yellow">{exam?.duration_minutes} মিনিট</span>
@@ -489,16 +504,17 @@ export default function ExamPage() {
             </div>
           )}
 
-          <div className="card p-4 mb-6 space-y-2">
+          <div className="card p-4 mb-4 space-y-2">
             <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">নিয়মাবলী</p>
             {[
               'পরীক্ষা চলাকালীন পেজ রিফ্রেশ করবেন না',
               'প্রতিটি প্রশ্নে একটি উত্তর দিন',
               'সময় শেষ হলে স্বয়ংক্রিয়ভাবে জমা হবে',
               'সব প্রশ্নের উত্তর দেওয়ার চেষ্টা করুন',
+              `অন্য ট্যাব বা অ্যাপে ${MAX_TAB_LEAVES} বারের বেশি গেলে পরীক্ষা স্বয়ংক্রিয়ভাবে জমা হবে`,
             ].map((r, i) => (
-              <div key={i} className="flex items-start gap-2 text-sm text-slate-300">
-                <span className="text-sky-400 mt-0.5">•</span>
+              <div key={i} className={cn('flex items-start gap-2 text-sm', i === 4 ? 'text-amber-400' : 'text-slate-300')}>
+                <span className={cn('mt-0.5', i === 4 ? 'text-amber-400' : 'text-sky-400')}>•</span>
                 <span className="font-hind">{r}</span>
               </div>
             ))}
@@ -520,151 +536,182 @@ export default function ExamPage() {
   if (step === 'exam') {
     const q = questions[currentQ];
     if (!q) return null;
-    const answeredCount = Object.keys(answers).length;
+    const answeredCount = Object.keys(answers).filter(k => !k.startsWith('__')).length;
     const progress = questions.length > 0 ? (answeredCount / questions.length) * 100 : 0;
 
     return (
-      <div className="min-h-screen bg-navy-900 flex flex-col">
+      <div className="min-h-dvh bg-navy-900 flex flex-col overflow-x-hidden">
+        {/* Full-screen submitting overlay */}
+        {submitting && (
+          <div className="fixed inset-0 z-[60] bg-navy-900/90 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+            <Loader2 size={40} className="text-sky-400 animate-spin" />
+            <p className="text-white font-hind text-lg">জমা হচ্ছে…</p>
+            <p className="text-slate-400 text-sm">একটু অপেক্ষা করুন</p>
+          </div>
+        )}
+
         {/* Sticky Header */}
         <div className="sticky top-0 z-30 bg-navy-900/95 backdrop-blur-sm border-b border-navy-700/50 px-4 py-3">
           <div className="max-w-3xl mx-auto flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-slate-400 text-xs">{settings.centerName}</p>
+              <p className="text-slate-400 text-xs truncate">{settings.centerName}</p>
               <p className="text-white text-sm font-semibold truncate">{exam?.title}</p>
             </div>
 
+            {/* Tab leave indicator */}
+            {tabLeaves > 0 && (
+              <div className="flex items-center gap-1 text-amber-400 text-xs shrink-0">
+                <EyeOff size={12} />
+                <span>{tabLeaves}/{MAX_TAB_LEAVES}</span>
+              </div>
+            )}
+
             {/* Timer */}
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center shrink-0">
               {exam?.timer_enabled === false ? (
-                <span className="text-slate-400 text-xs flex items-center gap-1"><Clock size={12} /> No time limit</span>
+                <span className="text-slate-400 text-xs flex items-center gap-1"><Clock size={12} /> No limit</span>
               ) : (
-                <span className={cn('font-inter font-black text-2xl tabular-nums transition-colors', timerColor,
+                <span className={cn('font-inter font-black text-xl tabular-nums transition-colors', timerColor,
                   remainingSecs < 60 && 'animate-pulse')}>
                   {fmtTime(remainingSecs)}
                 </span>
               )}
-              <span className="text-slate-500 text-[10px]">Q {currentQ + 1} / {questions.length}</span>
+              <span className="text-slate-500 text-[10px]">Q {currentQ + 1}/{questions.length}</span>
             </div>
 
             <button
               onClick={() => setSubmitOpen(true)}
               disabled={submitting}
-              className="btn-primary text-sm py-1.5 px-4 shrink-0"
+              className="btn-primary text-sm py-1.5 px-3 shrink-0"
             >
-              {submitting ? <Loader2 size={13} className="animate-spin" /> : 'জমা দিন'}
+              জমা দিন
             </button>
           </div>
 
           {/* Progress bar */}
           <div className="max-w-3xl mx-auto mt-2">
             <div className="h-1 bg-navy-700 rounded-full overflow-hidden">
-              <div className="h-full bg-sky-400 rounded-full" style={{ width: `${progress}%`, transition: 'width 0.3s ease' }} />
+              <div className="h-full bg-sky-400 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
             </div>
           </div>
         </div>
 
         {/* Question Area */}
-        <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-6 space-y-5">
+        <div className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-4 py-5 space-y-4">
           <div key={q.id} className="space-y-4">
-              {/* Question */}
-              <div className="card p-5">
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div className="flex items-start gap-3">
-                    <span className="shrink-0 w-7 h-7 rounded-full bg-sky-400/15 text-sky-400 text-sm font-bold flex items-center justify-center">{currentQ + 1}</span>
-                    <p className="text-white font-hind text-lg leading-relaxed">{q.question_text}</p>
-                  </div>
-                  <span className="badge-blue text-xs shrink-0">{q.marks}m</span>
+            {/* Question */}
+            <div className="card p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-2 mb-4">
+                <div className="flex items-start gap-2 min-w-0">
+                  <span className="shrink-0 w-7 h-7 rounded-full bg-sky-400/15 text-sky-400 text-sm font-bold flex items-center justify-center">{currentQ + 1}</span>
+                  <p className="text-white font-hind text-base sm:text-lg leading-relaxed">{q.question_text}</p>
                 </div>
-
-                {/* Options */}
-                <div className="space-y-2 ml-10">
-                  {OPTS.filter(opt => !!(q[`option_${opt.toLowerCase()}` as keyof Question] as string)).map(opt => {
-                    const key = `option_${opt.toLowerCase()}` as keyof Question;
-                    const text = q[key] as string;
-                    const selected = answers[q.id] === opt;
-                    return (
-                      <button
-                        key={opt}
-                        onClick={() => selectAnswer(q.id, opt)}
-                        className={cn(
-                          'w-full flex items-center gap-3 px-4 py-4 rounded-xl border-2 transition-all text-left min-h-[60px]',
-                          selected
-                            ? 'bg-sky-400/15 border-sky-400 text-sky-400'
-                            : 'bg-navy-800/50 border-navy-600 text-slate-300 hover:border-sky-400/40 hover:bg-sky-400/5'
-                        )}
-                      >
-                        <span className={cn('w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-sm font-bold border transition-all',
-                          selected ? 'bg-sky-400 border-sky-400 text-navy-900' : 'border-white/20 text-slate-400')}>
-                          {opt}
-                        </span>
-                        <span className="font-hind text-base">{text}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <span className="badge-blue text-xs shrink-0">{q.marks}m</span>
               </div>
 
-              {/* Navigation */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setCurrentQ(p => Math.max(0, p - 1))}
-                  disabled={currentQ === 0}
-                  className="btn-outline flex-1 justify-center disabled:opacity-30"
-                >
-                  <ChevronLeft size={16} /> আগে
-                </button>
-                <button
-                  onClick={() => setCurrentQ(p => Math.min(questions.length - 1, p + 1))}
-                  disabled={currentQ === questions.length - 1}
-                  className="btn-primary flex-1 justify-center disabled:opacity-50"
-                >
-                  পরে <ChevronRight size={16} />
-                </button>
-              </div>
-
-              {/* Question grid */}
-              <div className="card p-4">
-                <p className="text-slate-500 text-xs mb-3">প্রশ্ন নেভিগেশন</p>
-                <div className="flex flex-wrap gap-2">
-                  {questions.map((qq, i) => (
+              {/* Options — no left margin on mobile to prevent overflow */}
+              <div className="space-y-2">
+                {OPTS.filter(opt => !!(q[`option_${opt.toLowerCase()}` as keyof Question] as string)).map(opt => {
+                  const key = `option_${opt.toLowerCase()}` as keyof Question;
+                  const text = q[key] as string;
+                  const selected = answers[q.id] === opt;
+                  return (
                     <button
-                      key={qq.id}
-                      onClick={() => setCurrentQ(i)}
+                      key={opt}
+                      onClick={() => selectAnswer(q.id, opt)}
                       className={cn(
-                        'w-8 h-8 rounded-full text-xs font-bold border-2 transition-all',
-                        i === currentQ ? 'bg-sky-400 border-sky-400 text-navy-900' :
-                        answers[qq.id] ? 'bg-sky-400/15 border-sky-400/40 text-sky-400' :
-                        'border-white/20 text-slate-400 hover:border-white/40'
+                        'w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 sm:py-4 rounded-xl border-2 transition-all text-left',
+                        selected
+                          ? 'bg-sky-400/15 border-sky-400 text-sky-400'
+                          : 'bg-navy-800/50 border-navy-600 text-slate-300 hover:border-sky-400/40 hover:bg-sky-400/5'
                       )}
                     >
-                      {i + 1}
+                      <span className={cn('w-7 h-7 sm:w-8 sm:h-8 rounded-lg shrink-0 flex items-center justify-center text-sm font-bold border transition-all',
+                        selected ? 'bg-sky-400 border-sky-400 text-navy-900' : 'border-white/20 text-slate-400')}>
+                        {opt}
+                      </span>
+                      <span className="font-hind text-sm sm:text-base">{text}</span>
                     </button>
-                  ))}
-                </div>
-                <p className="text-slate-600 text-xs mt-2">
-                  {answeredCount}/{questions.length} উত্তর দেওয়া হয়েছে
-                </p>
+                  );
+                })}
               </div>
+            </div>
+
+            {/* Navigation */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCurrentQ(p => Math.max(0, p - 1))}
+                disabled={currentQ === 0}
+                className="btn-outline flex-1 justify-center disabled:opacity-30"
+              >
+                <ChevronLeft size={16} /> আগে
+              </button>
+              <button
+                onClick={() => setCurrentQ(p => Math.min(questions.length - 1, p + 1))}
+                disabled={currentQ === questions.length - 1}
+                className="btn-primary flex-1 justify-center disabled:opacity-50"
+              >
+                পরে <ChevronRight size={16} />
+              </button>
+            </div>
+
+            {/* Question grid */}
+            <div className="card p-4">
+              <p className="text-slate-500 text-xs mb-3">প্রশ্ন নেভিগেশন</p>
+              <div className="flex flex-wrap gap-2">
+                {questions.map((qq, i) => (
+                  <button
+                    key={qq.id}
+                    onClick={() => setCurrentQ(i)}
+                    className={cn(
+                      'w-8 h-8 rounded-full text-xs font-bold border-2 transition-all',
+                      i === currentQ ? 'bg-sky-400 border-sky-400 text-navy-900' :
+                      answers[qq.id] ? 'bg-sky-400/15 border-sky-400/40 text-sky-400' :
+                      'border-white/20 text-slate-400 hover:border-white/40'
+                    )}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+              <p className="text-slate-600 text-xs mt-2">
+                {answeredCount}/{questions.length} উত্তর দেওয়া হয়েছে
+                {tabLeaves > 0 && (
+                  <span className="ml-3 text-amber-400">⚠ {tabLeaves} বার ট্যাব ছেড়েছেন</span>
+                )}
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Submit confirm modal */}
         <AnimatePresence>
-          {submitOpen && (
+          {submitOpen && !submitting && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setSubmitOpen(false)} />
-              <motion.div initial={{ opacity: 0, scale: 0.93 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.93 }} className="relative card-glass p-6 w-full max-w-sm z-10 text-center">
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                onClick={() => setSubmitOpen(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.93 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.93 }}
+                className="relative card-glass p-6 w-full max-w-sm z-10 text-center"
+              >
                 {unanswered > 0 && (
                   <div className="mb-4 p-3 rounded-xl bg-amber-400/10 border border-amber-400/20">
-                    <p className="text-amber-400 text-sm">⚠ আপনি {unanswered}টি প্রশ্নের উত্তর দেননি।</p>
+                    <p className="text-amber-400 text-sm font-hind">⚠ আপনি {unanswered}টি প্রশ্নের উত্তর দেননি।</p>
                   </div>
                 )}
                 <p className="font-semibold text-white mb-1">আপনি নিশ্চিত?</p>
-                <p className="text-slate-400 text-sm mb-5">পরীক্ষা জমা দেওয়ার পর আর পরিবর্তন করা যাবে না।</p>
+                <p className="text-slate-400 text-sm mb-5 font-hind">পরীক্ষা জমা দেওয়ার পর আর পরিবর্তন করা যাবে না।</p>
                 <div className="flex gap-3">
                   <button onClick={() => setSubmitOpen(false)} className="btn-outline flex-1 justify-center">ফিরে যাই</button>
-                  <button onClick={() => handleSubmit(false)} disabled={submitting} className="btn-primary flex-1 justify-center">
-                    {submitting ? <><Loader2 size={14} className="animate-spin" /> জমা হচ্ছে…</> : 'Submit করুন'}
+                  <button
+                    onClick={() => handleSubmitRef.current(false)}
+                    disabled={submitting}
+                    className="btn-primary flex-1 justify-center"
+                  >
+                    Submit করুন
                   </button>
                 </div>
               </motion.div>
@@ -694,6 +741,7 @@ function ResultView({ exam, submission, questions, answers, leaderboard, student
   answers: Record<string, string>; leaderboard: any[]; studentId?: string;
 }) {
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const { student } = useStudentStore.getState();
   const total = exam.total_marks;
   const score = submission.score;
   const pct = total > 0 ? Math.round((score / total) * 100) : 0;
@@ -707,20 +755,34 @@ function ResultView({ exam, submission, questions, answers, leaderboard, student
 
   const RANK_ICONS: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 
-  const circumference = 2 * Math.PI * 54; // r=54
+  const circumference = 2 * Math.PI * 54;
   const strokeDash = circumference - (pct / 100) * circumference;
 
   return (
-    <div className="min-h-screen bg-navy-900 py-10 px-4">
-      <div className="max-w-lg mx-auto space-y-5">
+    <div className={cn(
+      'bg-navy-900 px-4 overflow-x-hidden transition-all',
+      showBreakdown ? 'min-h-dvh overflow-y-auto py-8' : 'h-dvh overflow-y-hidden py-6'
+    )}>
+      <div className="max-w-lg mx-auto space-y-4">
+        {/* Back to dashboard */}
+        <div className="flex items-center justify-between">
+          <a href={student ? '/portal/dashboard' : '/portal/exams'}
+            className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors">
+            <ChevronLeft size={16} /> ড্যাশবোর্ড
+          </a>
+          <a href="/portal/exams"
+            className="flex items-center gap-1.5 text-sky-400 hover:text-sky-300 text-xs transition-colors">
+            <LayoutDashboard size={13} /> সব পরীক্ষা
+          </a>
+        </div>
+
         {/* Score card */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card p-8 text-center">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card p-6 sm:p-8 text-center">
           <div className="text-4xl mb-2">{passed ? '🎉' : '😔'}</div>
           <h2 className="font-inter font-black text-2xl text-white mb-1">
             {passed ? 'অভিনন্দন!' : 'আরও চেষ্টা করুন'}
           </h2>
 
-          {/* Score circle */}
           <div className="flex justify-center my-6">
             <div className="relative w-36 h-36">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
@@ -728,8 +790,7 @@ function ResultView({ exam, submission, questions, answers, leaderboard, student
                 <motion.circle
                   cx="60" cy="60" r="54" fill="none"
                   stroke={passed ? '#34d399' : '#f87171'}
-                  strokeWidth="10"
-                  strokeLinecap="round"
+                  strokeWidth="10" strokeLinecap="round"
                   strokeDasharray={circumference}
                   initial={{ strokeDashoffset: circumference }}
                   animate={{ strokeDashoffset: strokeDash }}
@@ -774,7 +835,7 @@ function ResultView({ exam, submission, questions, answers, leaderboard, student
           )}
         </motion.div>
 
-        {/* Leaderboard top 5 */}
+        {/* Leaderboard */}
         {leaderboard.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card overflow-hidden">
             <div className="px-5 py-3 border-b border-navy-700/50 flex items-center gap-2">
@@ -795,7 +856,7 @@ function ResultView({ exam, submission, questions, answers, leaderboard, student
                       {s.student?.name ?? '—'} {isMe && <span className="text-sky-400 text-xs">(আপনি)</span>}
                     </span>
                     <span className="font-inter font-bold text-white text-sm">{s.score}/{exam.total_marks}</span>
-                    <span className="text-slate-500 text-xs">{Math.floor(s.time_taken/60)}m{s.time_taken%60}s</span>
+                    <span className="text-slate-500 text-xs">{Math.floor(s.time_taken / 60)}m{s.time_taken % 60}s</span>
                   </div>
                 );
               })}
@@ -803,7 +864,7 @@ function ResultView({ exam, submission, questions, answers, leaderboard, student
           </motion.div>
         )}
 
-        {/* Answer breakdown toggle */}
+        {/* Answer breakdown */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <button onClick={() => setShowBreakdown(v => !v)} className="btn-outline w-full justify-center text-sm">
             {showBreakdown ? 'বিস্তারিত বন্ধ করুন' : 'বিস্তারিত দেখুন (প্রশ্নভিত্তিক)'}

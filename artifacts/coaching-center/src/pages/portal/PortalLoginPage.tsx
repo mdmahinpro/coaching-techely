@@ -66,8 +66,8 @@ export default function PortalLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-navy-900 flex items-center justify-center p-4">
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div className="h-screen bg-navy-900 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/4 right-1/4 w-80 h-80 bg-violet-500/6 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-sky-500/6 rounded-full blur-3xl" />
       </div>

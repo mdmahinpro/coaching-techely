@@ -44,15 +44,39 @@ export function generateReceipt(r: ReceiptData): void {
       justify-content: center;
       align-items: flex-start;
       min-height: 100vh;
-      padding: 32px 16px;
+      padding: 24px 12px;
     }
 
     .receipt {
-      width: 420px;
+      max-width: 420px;
+      width: 100%;
       background: #fff;
       border-radius: 20px;
       overflow: hidden;
       box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    }
+
+    @media (max-width: 480px) {
+      body { padding: 16px 8px; }
+      .header { padding: 20px 16px 28px; }
+      .inst-name { font-size: 14px; }
+      .body { padding: 14px 16px 20px; }
+      .student-card { padding: 10px 12px; gap: 10px; }
+      .avatar { width: 36px; height: 36px; font-size: 15px; border-radius: 10px; }
+      .student-name { font-size: 13px; }
+      .student-meta { font-size: 11px; }
+      .amount-box { padding: 14px; }
+      .total-val { font-size: 18px; }
+      .amt-item-val { font-size: 13px; }
+      .footer { padding: 12px 16px; }
+      .footer-sig { margin-top: 14px; }
+      .sig-line { width: 90px; }
+      .print-btn { padding: 10px 24px; font-size: 13px; }
+      .receipt-no-val { font-size: 13px; }
+      .info-label { font-size: 11px; }
+      .info-value { font-size: 12px; }
+      .payment-chip { padding: 5px 10px; }
+      .payment-chip-label { font-size: 12px; }
     }
 
     /* ── Header ── */
@@ -297,14 +321,23 @@ export function generateReceipt(r: ReceiptData): void {
     }
 
     /* ── Print media ── */
+    @page { size: A4; margin: 12mm 15mm; }
     @media print {
-      body { background: #fff; padding: 0; }
+      html, body {
+        background: #fff;
+        padding: 0;
+        margin: 0;
+        min-height: auto !important;
+        height: auto !important;
+      }
       .receipt {
         box-shadow: none;
-        border-radius: 0;
+        border-radius: 12px;
         width: 100%;
         max-width: 420px;
         margin: 0 auto;
+        page-break-inside: avoid;
+        break-inside: avoid;
       }
       .no-print { display: none !important; }
     }
@@ -539,10 +572,28 @@ export function generateResultCard(r: ResultCardData): void {
       display: flex; justify-content: center; align-items: flex-start;
       min-height: 100vh; padding: 32px 16px;
     }
-    .wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; }
     .card {
-      width: 420px; background: #fff; border-radius: 20px;
+      max-width: 420px; width: 100%; background: #fff; border-radius: 20px;
       overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    }
+    @media (max-width: 480px) {
+      body { padding: 16px 8px; }
+      .header { padding: 20px 16px 28px; }
+      .inst-name { font-size: 14px; }
+      .score-big { font-size: 40px; }
+      .grade-pill { font-size: 16px; padding: 5px 14px; }
+      .body { padding: 14px 16px 20px; }
+      .student-card { padding: 10px 12px; gap: 10px; }
+      .avatar { width: 36px; height: 36px; font-size: 15px; border-radius: 10px; }
+      .student-name { font-size: 13px; }
+      .student-id { font-size: 11px; }
+      .stats-grid { gap: 6px; }
+      .stat-val { font-size: 16px; }
+      .pass-stamp { padding: 12px; }
+      .pass-stamp-text { font-size: 15px; }
+      .footer { padding: 12px 16px; }
+      .print-btn { padding: 10px 22px; font-size: 13px; }
     }
     .header {
       background: linear-gradient(135deg, #0b1120 0%, #0f1f3d 60%, ${passed ? '#065f46' : '#7f1d1d'} 100%);
@@ -626,9 +677,25 @@ export function generateResultCard(r: ResultCardData): void {
       box-shadow: 0 4px 14px rgba(14,165,233,0.35);
     }
     .print-btn:hover { opacity: 0.88; }
+    @page { size: A4; margin: 12mm 15mm; }
     @media print {
-      body { background: #fff; padding: 0; }
-      .card { box-shadow: none; border-radius: 0; width: 100%; max-width: 420px; margin: 0 auto; }
+      html, body {
+        background: #fff;
+        padding: 0;
+        margin: 0;
+        min-height: auto !important;
+        height: auto !important;
+      }
+      .wrap { gap: 0; }
+      .card {
+        box-shadow: none;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 420px;
+        margin: 0 auto;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
       .no-print { display: none !important; }
     }
   </style>

@@ -76,15 +76,25 @@ function ExamCard({ exam, myResult }: { exam: Exam; myResult?: any }) {
         </div>
 
         <div className="shrink-0 flex flex-col gap-2 items-end">
-          {isActive && (
+          {isActive && !myResult && (
             <Link to={`/exam/${exam.id}`} className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5 animate-pulse-slow">
               <PlayCircle size={13} /> পরীক্ষা দিন
             </Link>
           )}
+          {isActive && myResult && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold font-hind bg-amber-400/20 border border-amber-400/40 text-amber-300">
+              ✓ অংশগ্রহণ করেছেন
+            </span>
+          )}
           {isEnded && myResult && (
-            <Link to="/portal/results" className="btn-outline text-xs py-1.5 px-3 flex items-center gap-1">
-              ফলাফল <ChevronRight size={12} />
-            </Link>
+            <div className="flex flex-col items-end gap-1.5">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold font-hind bg-amber-400/20 border border-amber-400/40 text-amber-300">
+                ✓ অংশগ্রহণ করেছেন
+              </span>
+              <Link to="/portal/results" className="btn-outline text-xs py-1.5 px-3 flex items-center gap-1">
+                ফলাফল <ChevronRight size={12} />
+              </Link>
+            </div>
           )}
           {isEnded && !myResult && (
             <span className="text-slate-500 text-xs font-hind">অংশগ্রহণ করেননি</span>

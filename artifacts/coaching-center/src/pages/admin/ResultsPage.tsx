@@ -169,7 +169,7 @@ export default function ResultsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-navy-700/50">
-                    {['Rank', 'Student', 'ID', 'Score', 'Grade', 'Correct', 'Wrong', 'Time', 'Status', ''].map(h => (
+                    {['Rank', 'Student', 'ID', 'Score', 'Grade', 'Correct', 'Wrong', 'Time', 'Tab Leaves', 'Status', ''].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-slate-400 font-medium text-xs whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -184,6 +184,8 @@ export default function ResultsPage() {
                     const passed = s.score >= (s.exam?.pass_marks ?? selectedExam?.pass_marks ?? 0);
                     const mins = Math.floor((s.time_taken ?? 0) / 60);
                     const secs = (s.time_taken ?? 0) % 60;
+                    const rawAnswers = !s.answers ? {} : typeof s.answers === 'object' ? s.answers as Record<string,string> : (() => { try { return JSON.parse(s.answers as string); } catch { return {}; } })();
+                    const tabLeaves = parseInt((rawAnswers as Record<string,string>).__tab_leaves ?? '0', 10) || 0;
                     return (
                       <tr
                         key={s.id}
@@ -218,6 +220,15 @@ export default function ResultsPage() {
                         <td className="px-4 py-3 text-emerald-400 font-medium">{s.correct_count ?? '—'}</td>
                         <td className="px-4 py-3 text-red-400 font-medium">{s.wrong_count ?? '—'}</td>
                         <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{mins}m {secs}s</td>
+                        <td className="px-4 py-3">
+                          {tabLeaves > 0 ? (
+                            <span className={cn('text-xs font-medium', tabLeaves >= 3 ? 'text-red-400' : 'text-amber-400')}>
+                              ⚠ {tabLeaves}×
+                            </span>
+                          ) : (
+                            <span className="text-slate-600 text-xs">—</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className={passed ? 'badge-green' : 'badge-red'}>{passed ? 'Pass' : 'Fail'}</span>
                         </td>

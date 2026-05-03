@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { GraduationCap, Lock, Mail, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
@@ -38,7 +38,7 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-navy-900 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="h-screen bg-navy-900 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background glows */}
       <div className="absolute inset-0 pointer-events-none">
         <div style={{ background: 'radial-gradient(ellipse 70% 50% at 50% 0%, rgba(56,189,248,0.10) 0%, transparent 70%)' }} className="absolute inset-0" />
@@ -48,7 +48,6 @@ export default function AdminLoginPage() {
       </div>
 
       <div className="w-full max-w-sm relative">
-        {/* Back link */}
         <Link to="/" className="flex items-center gap-2 text-slate-500 hover:text-slate-300 text-sm mb-6 transition-colors w-fit">
           <ArrowLeft size={14} /> Back to site
         </Link>
@@ -58,7 +57,6 @@ export default function AdminLoginPage() {
           transition={{ duration: 0.5 }}
         >
           <div className="card-glass p-8">
-            {/* Header */}
             <div className="text-center mb-8">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500 to-violet-500 flex items-center justify-center mx-auto mb-4 glow-blue">
                 <GraduationCap size={28} className="text-white" />
@@ -69,7 +67,6 @@ export default function AdminLoginPage() {
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              {/* Email */}
               <div>
                 <label className="text-xs text-slate-400 mb-1.5 block">Email Address</label>
                 <div className="relative">
@@ -84,7 +81,6 @@ export default function AdminLoginPage() {
                 {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
               </div>
 
-              {/* Password */}
               <div>
                 <label className="text-xs text-slate-400 mb-1.5 block">Password</label>
                 <div className="relative">

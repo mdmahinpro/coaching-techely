@@ -4,9 +4,9 @@ interface Props { children: React.ReactNode }
 
 export function PortalLayout({ children }: Props) {
   return (
-    <div className="min-h-screen bg-navy-900">
+    <div className="min-h-dvh bg-navy-900 overflow-x-hidden">
       <PortalNav />
-      <main className="pt-14 pb-20 md:pb-8 max-w-5xl mx-auto px-4 py-6">
+      <main className="pt-14 pb-20 md:pb-8 max-w-5xl mx-auto px-4 py-6 overflow-x-hidden">
         {children}
       </main>
     </div>
